@@ -46,6 +46,12 @@ function reservationStatus(form, state) {
 }
 document.querySelectorAll("form").forEach((form) => {
   form.addEventListener("submit", async (event) => {
+    if (
+      form.getAttribute("id") === "wish-form" &&
+      (event.submitter?.value === "searchImage" ||
+        form.getAttribute("aria-busy") === "true")
+    )
+      return;
     if (!form.matches(".reservation-form") || !window.fetch) {
       if (event.submitter) {
         event.submitter.setAttribute("aria-busy", "true");
@@ -150,3 +156,117 @@ if (imageSearch) {
   form.elements.productUrl.addEventListener("input", updateImageSearch);
   updateImageSearch();
 }
+// Die optionale Bildsuche läuft als zweite Anfrage, damit die Produktvorschau
+// schon während der Suche nutzbar ist. Ohne JavaScript bleibt der POST-Button.
+(() => {
+  const form = document.querySelector("#wish-form");
+  const button = document.querySelector("#openai-image-search");
+  const status = document.querySelector("#openai-image-status");
+  const box = document.querySelector("#imported-image-box");
+  if (!form || !button || !status || !box) return;
+  let busy = false;
+  let controller;
+  const fields = ["title", "productUrl"];
+  const signature = () =>
+    JSON.stringify(fields.map((name) => form.elements[name].value));
+  fields.forEach((name) =>
+    form.elements[name].addEventListener("input", () => controller?.abort()),
+  );
+  form.elements.image?.addEventListener("change", () => controller?.abort());
+  form.addEventListener("submit", (event) => {
+    if (event.submitter !== button) {
+      if (busy) {
+        event.preventDefault();
+        status.textContent =
+          "Die Bildsuche läuft noch. Bitte kurz warten oder Titel bzw. Link ändern, um sie abzubrechen.";
+      }
+      return;
+    }
+    event.preventDefault();
+    search();
+  });
+  async function search() {
+    if (busy) return;
+    if (!form.elements.title.value.trim()) {
+      status.textContent = "Bitte zuerst einen Produktnamen eingeben.";
+      form.elements.title.focus();
+      return;
+    }
+    if (form.elements.image?.files?.length) return;
+    busy = true;
+    controller = new AbortController();
+    button.disabled = true;
+    form.setAttribute("aria-busy", "true");
+    status.textContent = "OpenAI sucht ein Produktbild …";
+    const initial = signature();
+    const payload = { action: "searchImage" };
+    ["csrf", "listId", "id", ...fields].forEach(
+      (name) => (payload[name] = form.elements[name].value),
+    );
+    try {
+      const response = await fetch(
+        form.dataset.imageApi + "?action=searchImage",
+        {
+          method: "POST",
+          credentials: "same-origin",
+          signal: controller.signal,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
+      const result = await response.json();
+      if (!result.ok)
+        throw new Error(
+          result.error?.message || "Die Bildsuche ist gerade nicht verfügbar.",
+        );
+      if (signature() !== initial) return;
+      form.querySelector('[name="useImportedImage"]')?.remove();
+      box.replaceChildren();
+      status.textContent = result.data.warning;
+      if (!result.data.hasImage) return;
+      const selected = document.createElement("input");
+      Object.assign(selected, {
+        type: "checkbox",
+        name: "useImportedImage",
+        value: "yes",
+        checked: true,
+      });
+      const selection = document.createElement("label");
+      selection.className = "check";
+      selection.append(selected, "Dieses Bild übernehmen");
+      const preview = document.createElement("img");
+      Object.assign(preview, {
+        className: "image-preview",
+        alt: "Importierte Bildvorschau",
+        src: box.dataset.previewUrl + "&v=" + Date.now(),
+      });
+      const credit = document.createElement("a");
+      Object.assign(credit, {
+        textContent: "Bildquelle (öffnet neuen Tab)",
+        href: result.data.imageSourceUrl,
+        target: "_blank",
+        rel: "noopener noreferrer",
+      });
+      const help = document.createElement("p");
+      help.className = "field-help";
+      help.textContent = "Importiertes Bild wird beim Speichern übernommen.";
+      box.append(selection, preview, credit, help);
+      document.querySelector(".image-search-help")?.remove();
+    } catch (error) {
+      status.textContent =
+        error.name === "AbortError"
+          ? "Bildsuche abgebrochen. Bitte mit den geänderten Angaben erneut suchen."
+          : error.message;
+      // Eine fehlgeschlagene Suche darf kein altes Importbild auswählen.
+      form.querySelector('[name="useImportedImage"]')?.remove();
+      box.replaceChildren();
+    } finally {
+      busy = false;
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+      form.classList.remove("submitting");
+      form.removeAttribute("aria-busy");
+    }
+  }
+  if (form.dataset.imageAuto === "yes") search();
+})();

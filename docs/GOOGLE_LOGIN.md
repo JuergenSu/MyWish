@@ -46,9 +46,9 @@ Alle angemeldeten Nutzer sehen weiterhin alle Listen; Eigentümer-/Schenkendenre
 
 Vor dem Update wie üblich ein Betreiber-Backup anlegen und Code **einschließlich `vendor/` und `auth/`** hochladen. `storage/` und `config.php` erhalten.
 
-Diese Version nutzt **Schema 2**. Beim ersten Datenzugriff wird ein gültiger Schema-1-Stand unter dem Storage-Lock zunächst vollständig als `backup-schema-1-…php` mit PHP-Abbruchschutz gesichert und erst danach auf Schema 2 umgestellt. Nutzer-IDs, Passworthashes, Listen, Wünsche und Reservierungen bleiben erhalten; bestehende Konten erhalten zunächst keine Google-Verknüpfung. Schlägt die Sicherung fehl, wird die Migration nicht geschrieben. Beschädigte oder unbekannte Schemaversionen werden abgewiesen.
+Google-Verknüpfungen wurden mit Schema 2 eingeführt. Die aktuelle Version nutzt **Schema 3** für Bildquellen und migriert gültige Schema-1-/Schema-2-Daten unter Lock nach vorherigem vollständigem Backup. Nutzer-IDs, Passworthashes, Google-Verknüpfungen, Listen, Wünsche und Reservierungen bleiben erhalten; bei Schema-1-Konten werden leere Google-Felder ergänzt. Schlägt die Sicherung fehl, wird die Migration nicht geschrieben. Details zum aktuellen Datenstand: [OpenAI-Bildsuche](OPENAI_IMAGES.md#update-und-backup).
 
-Schema-2-Dateien sind für ältere App-Versionen nicht lesbar. Für ein Rollback vorherige App-Version und zugehöriges Schema-1-Backup gemeinsam wiederherstellen. Automatische Migrationsbackups wie andere Sicherungen vertraulich behandeln und nach der Aufbewahrungsfrist löschen. Google-only-Nutzer sollten ein lokales Passwort festlegen, bevor der Betreiber Google dauerhaft deaktiviert.
+Neuere Schemaversionen sind für ältere App-Versionen nicht lesbar. Für ein Rollback vorherige App-Version und zugehöriges Backup gemeinsam wiederherstellen. Automatische Migrationsbackups wie andere Sicherungen vertraulich behandeln und nach der Aufbewahrungsfrist löschen. Google-only-Nutzer sollten ein lokales Passwort festlegen, bevor der Betreiber Google dauerhaft deaktiviert.
 
 ## Technische Absicherung und Tests
 

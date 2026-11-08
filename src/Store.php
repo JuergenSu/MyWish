@@ -10,7 +10,7 @@ final class Problem extends \RuntimeException
 final class Store
 {
     public const GUARD = "<?php http_response_code(404); exit; __halt_compiler();\n";
-    public const VERSION = 2;
+    public const VERSION = 3;
     public function __construct(private string $directory)
     {
         if (!is_dir($directory) || !is_writable($directory)) {
@@ -30,10 +30,10 @@ final class Store
             $raw=is_file($file) ? (string)file_get_contents($file) : null;
             $state=$raw!==null ? self::decode($raw) : self::empty();
             $before=$state;
-            if ($state['schemaVersion']===1) {
+            if ($state['schemaVersion']<self::VERSION) {
                 // Backup muss vollständig geschrieben sein, bevor Migration/Änderung erfolgt.
-                $this->write($this->directory.'/backup-schema-1-'.gmdate('Ymd-His').'-'.bin2hex(random_bytes(6)).'.php',$raw);
-                foreach ($state['users'] as &$user) { $user['googleSub']=null; $user['googleEmail']=null; } unset($user);
+                $this->write($this->directory.'/backup-schema-'.$state['schemaVersion'].'-'.gmdate('Ymd-His').'-'.bin2hex(random_bytes(6)).'.php',$raw);
+                if ($state['schemaVersion']===1) { foreach ($state['users'] as &$user) { $user['googleSub']=null; $user['googleEmail']=null; } unset($user); }
                 $state['schemaVersion']=self::VERSION;
             }
             $result=$callback($state);
@@ -55,7 +55,7 @@ final class Store
     }
     public static function validate(array $s): void
     {
-        if (!in_array($s['schemaVersion'] ?? null, [1,self::VERSION], true)) { throw new Problem(503, 'Unbekannte Datenversion. Bitte passende MyWish-Version verwenden; Daten nicht überschreiben.'); }
+        if (!in_array($s['schemaVersion'] ?? null, [1,2,self::VERSION], true)) { throw new Problem(503, 'Unbekannte Datenversion. Bitte passende MyWish-Version verwenden; Daten nicht überschreiben.'); }
         foreach (['users','lists','wishes','reservations','attempts'] as $key) {
             if (!isset($s[$key]) || !is_array($s[$key]) || !array_is_list($s[$key])) { throw new Problem(503, 'Ungültige Datenstruktur.'); }
         }
@@ -83,7 +83,12 @@ final class Store
                 if (array_key_exists('image',$row) && $row['image']!==null) {
                     $image=$row['image'];
                     if (!is_array($image)) { throw new Problem(503, 'Ungültige Bilddaten.'); }
-                    self::keys($image,['mime','data']);
+                    $hasSource=$s['schemaVersion']===self::VERSION && array_key_exists('sourceUrl',$image);
+                    self::keys($image,$hasSource ? ['mime','data','sourceUrl'] : ['mime','data']);
+                    if ($hasSource) {
+                        self::string($image['sourceUrl'],2048,true); $source=parse_url($image['sourceUrl']);
+                        if (!filter_var($image['sourceUrl'],FILTER_VALIDATE_URL) || !in_array(strtolower($source['scheme'] ?? ''),['http','https'],true) || isset($source['user']) || isset($source['pass'])) { throw new Problem(503,'Ungültige Bildquelle.'); }
+                    }
                     if (!is_string($image['data']) || strlen($image['data'])>2800000 || !in_array($image['mime'],['image/jpeg','image/png','image/webp'],true)) { throw new Problem(503, 'Ungültige Bilddaten.'); }
                     $bytes=base64_decode($image['data'],true); $info=$bytes!==false ? @getimagesizefromstring($bytes) : false;
                     if (!$info || $info['mime']!==$image['mime'] || strlen($bytes)>2097152 || $info[0]>6000 || $info[1]>6000 || $info[0]*$info[1]>16000000) { throw new Problem(503, 'Ungültige Bilddaten.'); }
@@ -95,7 +100,7 @@ final class Store
             self::string($u['name'],100,true); self::string($u['username'],120,true);
             if (!preg_match('/^[a-z0-9][a-z0-9._@+\-]{2,119}$/D',$u['username']) || isset($names[$u['username']]) || !is_int($u['sessionVersion']) || $u['sessionVersion']<1) { throw new Problem(503, 'Ungültiges Benutzerkonto.'); }
             $names[$u['username']]=true;
-            if ($s['schemaVersion']===self::VERSION) {
+            if ($s['schemaVersion']>=2) {
                 $sub=$u['googleSub']; $email=$u['googleEmail'];
                 if ($sub!==null) {
                     if (!is_string($sub) || !preg_match('/^[a-zA-Z0-9_-]{1,255}$/D',$sub) || isset($googleSubjects[$sub]) || !is_string($email) || strlen($email)>254 || !filter_var($email,FILTER_VALIDATE_EMAIL)) { throw new Problem(503,'Ungültige Google-Kontoverknüpfung.'); }
@@ -128,7 +133,7 @@ final class Store
             }
         }
         foreach ($s['users'] as $u) {
-            if (!(($s['schemaVersion']===self::VERSION && $u['passwordHash']===null && $u['googleSub']!==null) || (is_string($u['passwordHash'] ?? null) && (password_get_info($u['passwordHash'])['algo'] ?? null))) || !isset($u['username'], $u['name'], $u['sessionVersion'])) { throw new Problem(503, 'Ungültiges Benutzerkonto.'); }
+            if (!(($s['schemaVersion']>=2 && $u['passwordHash']===null && $u['googleSub']!==null) || (is_string($u['passwordHash'] ?? null) && (password_get_info($u['passwordHash'])['algo'] ?? null))) || !isset($u['username'], $u['name'], $u['sessionVersion'])) { throw new Problem(503, 'Ungültiges Benutzerkonto.'); }
         }
         foreach ($s['lists'] as $l) { if (!isset($ids['users'][$l['ownerUserId'] ?? '']) || !isset($l['name'])) { throw new Problem(503, 'Ungültige Listenreferenz.'); } }
         foreach ($s['wishes'] as $w) { if (!isset($ids['lists'][$w['listId'] ?? '']) || !is_int($w['quantity'] ?? null) || $w['quantity'] < 1 || $w['quantity'] > 99) { throw new Problem(503, 'Ungültige Wunschreferenz.'); } }

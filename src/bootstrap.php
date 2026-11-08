@@ -4,6 +4,7 @@ require_once __DIR__.'/Store.php';
 require_once __DIR__.'/App.php';
 require_once __DIR__.'/Metadata.php';
 require_once __DIR__.'/GoogleOidc.php';
+require_once __DIR__.'/OpenAiImages.php';
 
 use MyWish\Problem;
 use MyWish\Store;
@@ -46,6 +47,7 @@ if (!is_array($config)) { throw new Problem(503,'config.php muss ein Konfigurati
 $storageDirectory=$config['storage'] ?? dirname(__DIR__).'/storage';
 $app = new App(new Store($storageDirectory), $config['registration'] ?? null);
 $google = new MyWish\GoogleOidc(is_array($config['google'] ?? null) ? $config['google'] : [], $storageDirectory);
+$imageSearch = new MyWish\OpenAiImages(is_array($config['openai'] ?? null) ? $config['openai'] : [], $storageDirectory);
 if ($google->available()) { header('Content-Security-Policy: '.$csp.' https://accounts.google.com;'); } }
 catch (Throwable $e) { bootFailure($e instanceof Problem ? $e->getMessage() : 'MyWish kann die Daten nicht öffnen. Bitte Konfiguration prüfen.'); }
 function url(string $query = ''): string { global $base; return $base.'/index.php'.($query !== '' ? '?'.$query : ''); }
