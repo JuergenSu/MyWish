@@ -1,0 +1,10 @@
+/config.php
+/storage/*
+!/storage/.htaccess
+!/storage/index.php
+/tests/.artifacts/
+
+/node_modules/
+/package-lock.json
+/package.json
+__pycache__/

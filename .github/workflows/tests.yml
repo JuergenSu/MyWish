@@ -1,0 +1,40 @@
+name: V1 checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  php:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.2', '8.3', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: curl, dom, mbstring
+          coverage: none
+      - run: find . -name '*.php' -not -path './storage/state.php' -print0 | xargs -0 -n1 php -l
+      - run: php tests/unit.php
+      - run: php tests/import.php
+      - run: python3 tests/integration.py
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: curl, dom, mbstring
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.58.2 axe-core@4.11.1
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/browser.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-screenshots
+          path: tests/.artifacts/
