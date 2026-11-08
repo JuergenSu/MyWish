@@ -92,6 +92,12 @@ def scenario(base):
  check(code==422 and 'useImportedImage' not in Inputs(body.decode()).values,'Unsafe image rejected without stale preview')
  owner.post('importImage',{'imageUrl':'http://127.0.0.1/private.png'},422)
  guest.post('importImage',{'imageUrl':'https://images.example/manual.png'},401)
+ html,form=import_form('https://shop.example/product-large')
+ check(form['title']=='Große Shopseite' and form.get('useImportedImage')=='yes','Page above 4 MB with broken first image and lazy fallback populates the actual form')
+ recovered=owner.post('saveWish',{'listId':a,'title':form['title'],'productUrl':form['productUrl'],'useImportedImage':'yes'},201)['id']
+ code,bytes,headers=owner.request('media.php?type=wishes&id='+recovered)
+ check(code==200 and bytes.startswith(b'\x89PNG') and headers['Content-Type']=='image/png','Recovered image persists and is served locally')
+ owner.post('deleteWish',{'id':recovered,'confirm':'yes'})
  html,form=import_form('https://www.amazon.de/Manuell-speichern/dp/B000000503/')
  check('Amazon liefert gerade keine auslesbaren Produktdaten' in html and 'Vorschau geladen' not in html,'503 fallback is not claimed as a successful import')
  check('useImportedImage' not in form and form['title']=='Manuell speichern','Failed import never reuses old image')

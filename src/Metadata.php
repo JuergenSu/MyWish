@@ -4,7 +4,8 @@ namespace MyWish;
 
 final class Metadata
 {
-    public const MAX_HTML_BYTES = 4 * 1024 * 1024;
+    public const MAX_HTML_BYTES = 12 * 1024 * 1024;
+    private const MAX_IMAGE_ATTEMPTS = 5;
 
     public static function publicAddress(string $ip): bool
     {
@@ -41,7 +42,9 @@ final class Metadata
         if ($value==='') { return $base; }
         if ($value[0]==='#') { return preg_replace('/#.*$/','',$base).$value; }
         if ($value[0]==='?') { return $origin.($p['path'] ?? '/').$value; }
-        $path=str_starts_with($value,'/') ? $value : rtrim(dirname($p['path'] ?? '/'),'/').'/'.$value;
+        $basePath=$p['path'] ?? '/';
+        $directory=str_ends_with($basePath,'/') ? $basePath : dirname($basePath).'/';
+        $path=str_starts_with($value,'/') ? $value : $directory.$value;
         $parts=[];
         // Dot-Segmente nur im Pfad normalisieren, nicht in Query-/Fragmentwerten.
         preg_match('/^([^?#]*)(.*)$/s',$path,$m);
@@ -49,7 +52,9 @@ final class Metadata
             if ($part==='..') { array_pop($parts); }
             elseif ($part!=='.' && $part!=='') { $parts[]=$part; }
         }
-        return $origin.'/'.implode('/',$parts).$m[2];
+        $normalized=implode('/',$parts);
+        if ($normalized!=='' && (str_ends_with($m[1],'/') || preg_match('~/(?:\.|\.\.)$~',$m[1]))) { $normalized.='/'; }
+        return $origin.'/'.$normalized.$m[2];
     }
 
     private static function unavailable(string $message): Problem
@@ -57,10 +62,10 @@ final class Metadata
         return new Problem(422,$message,'shop_unavailable');
     }
 
-    public static function fetch(string $url, int $max = self::MAX_HTML_BYTES): array
+    public static function fetch(string $url, int $max = self::MAX_HTML_BYTES, ?float $deadline = null): array
     {
         if (!function_exists('curl_init')) { throw self::unavailable('Automatischer Import ist hier nicht verfügbar. Bitte manuell ausfüllen.'); }
-        $deadline=microtime(true)+10;
+        $deadline=min($deadline ?? INF,microtime(true)+10);
         for ($redirect=0;$redirect<=3;$redirect++) {
             App::webUrl($url); $p=parse_url($url); $host=strtolower($p['host']);
             if (isset($p['port']) && !in_array($p['port'],[80,443],true)) { throw new Problem(422,'Nur Standard-Webports sind erlaubt.'); }
@@ -70,27 +75,28 @@ final class Metadata
             $remaining=(int)(($deadline-microtime(true))*1000);
             if ($remaining<1) { throw self::unavailable('Import hat zu lange gedauert. Bitte manuell ausfüllen.'); }
             $port=$p['port'] ?? ($p['scheme']==='https' ? 443 : 80);
-            $body=''; $headers=[]; $c=curl_init($url);
+            $body=''; $headers=[]; $tooLarge=false; $c=curl_init($url);
             curl_setopt_array($c,[
                 CURLOPT_PROXY=>'', CURLOPT_FOLLOWLOCATION=>false, CURLOPT_PROTOCOLS=>CURLPROTO_HTTP|CURLPROTO_HTTPS,
                 CURLOPT_CONNECTTIMEOUT_MS=>min(3000,$remaining), CURLOPT_TIMEOUT_MS=>$remaining,
                 CURLOPT_SSL_VERIFYPEER=>true, CURLOPT_SSL_VERIFYHOST=>2,
                 CURLOPT_RESOLVE=>[$host.':'.$port.':'.$ips[0]], CURLOPT_ENCODING=>'',
                 CURLOPT_USERAGENT=>'MyWish/1.0 metadata preview',
-                CURLOPT_HTTPHEADER=>['Accept: text/html,application/xhtml+xml,image/*;q=0.8,*/*;q=0.5','Accept-Language: de-DE,de;q=0.9,en;q=0.5'],
+                CURLOPT_HTTPHEADER=>['Accept: text/html,application/xhtml+xml,image/webp,image/png,image/jpeg;q=0.9,*/*;q=0.5','Accept-Language: de-DE,de;q=0.9,en;q=0.5'],
                 CURLOPT_HEADERFUNCTION=>function($c,$line) use (&$headers) {
                     if (str_starts_with($line,'HTTP/')) { $headers=[]; }
                     if (str_contains($line,':')) { [$k,$v]=explode(':',$line,2); $headers[strtolower(trim($k))]=trim($v); }
                     return strlen($line);
                 },
-                CURLOPT_WRITEFUNCTION=>function($c,$part) use (&$body,$max) {
+                CURLOPT_WRITEFUNCTION=>function($c,$part) use (&$body,&$tooLarge,$max) {
                     // Grenze gilt auch für bereits dekomprimierte Antworten.
-                    if (strlen($body)+strlen($part)>$max) { return 0; }
+                    if (strlen($body)+strlen($part)>$max) { $tooLarge=true; return 0; }
                     $body.=$part; return strlen($part);
                 },
             ]);
             $ok=curl_exec($c); $status=curl_getinfo($c,CURLINFO_RESPONSE_CODE); curl_close($c);
-            if ($ok===false) { throw self::unavailable('Shop-Antwort nicht lesbar oder zu groß. Bitte manuell ausfüllen.'); }
+            if ($tooLarge) { throw self::unavailable('Die Shop-Antwort überschreitet die Importgrenze von '.($max/1024/1024).' MB. Bitte manuell ergänzen.'); }
+            if ($ok===false) { throw self::unavailable('Shop-Antwort nicht lesbar. Bitte manuell ausfüllen.'); }
             if ($status>=300 && $status<400 && isset($headers['location'])) { $url=self::resolveUrl($url,$headers['location']); continue; }
             if ($status!==200) { throw self::unavailable('Der Shop erlaubt gerade keinen Import. Bitte manuell ausfüllen.'); }
             return ['body'=>$body,'type'=>$headers['content-type'] ?? '', 'url'=>$url];
@@ -138,6 +144,170 @@ final class Metadata
         return "contains(concat(' ',normalize-space(@class),' '),' ".$name." ')";
     }
 
+    private static function schemaType(array $node,string $type): bool
+    {
+        foreach ((array)($node['@type'] ?? []) as $value) {
+            if (is_string($value) && preg_replace('~^https?://schema\.org/~','',$value)===$type) { return true; }
+        }
+        return false;
+    }
+
+    private static function compactHtml(string $html): string
+    {
+        // Große Hydration-/JavaScript-Blöcke nicht in den DOM kopieren. Produkt-JSON
+        // wird ohnehin nur bis 2 MB ausgewertet; libxml begrenzt einzelne Textknoten.
+        $offset=0; $copied=0; $parts=[];
+        while (preg_match('~<script\b[^>]*>~i',$html,$match,PREG_OFFSET_CAPTURE,$offset)) {
+            $start=$match[0][1]; $content=$start+strlen($match[0][0]);
+            $end=stripos($html,'</script',$content);
+            if ($end===false || ($close=strpos($html,'>',$end))===false) { break; }
+            if ($end-$content>2*1024*1024) { $parts[]=substr($html,$copied,$start-$copied); $copied=$close+1; }
+            $offset=$close+1;
+        }
+        if (!$parts) { return $html; }
+        $parts[]=substr($html,$copied);
+        return implode('',$parts);
+    }
+
+    private static function structuredProduct(\DOMDocument $doc,string $url): array
+    {
+        $products=[]; $index=[]; $visited=0;
+        $page=preg_replace('/[?#].*$/','',self::canonicalUrl($url));
+        $walk=function(array $node,int $depth=0,int $score=0) use (&$walk,&$products,&$index,&$visited,$page,$url): void {
+            if ($depth>32 || ++$visited>4096) { return; }
+            if (is_string($node['@id'] ?? null)) { $index[$node['@id']]=$node; }
+            if (self::schemaType($node,'Product') || self::schemaType($node,'ProductGroup')) {
+                foreach (['url','@id'] as $key) {
+                    if (!is_string($node[$key] ?? null)) { continue; }
+                    try {
+                        $candidate=preg_replace('/[?#].*$/','',self::canonicalUrl(self::resolveUrl($url,$node[$key])));
+                        if ($candidate===$page) { $score+=20; }
+                    } catch (Problem) {}
+                }
+                $products[]=['node'=>$node,'score'=>$score];
+                // Unterprodukte/Empfehlungen nicht versehentlich als Hauptartikel wählen.
+                return;
+            }
+            foreach ($node as $key=>$child) {
+                if (!is_array($child) || in_array($key,['itemListElement','isRelatedTo','isSimilarTo','hasVariant'],true)) { continue; }
+                $walk($child,$depth+1,$score+($key==='mainEntity' ? 40 : 0));
+            }
+        };
+        foreach ($doc->getElementsByTagName('script') as $script) {
+            $type=strtolower(trim(explode(';',$script->getAttribute('type'))[0]));
+            $id=$script->getAttribute('id');
+            $productJson=$script->hasAttribute('data-product-json') || preg_match('/^product[-_]?json(?:[-_]|$)/i',$id);
+            if ($type!=='application/ld+json' && !($type==='application/json' && ($productJson || $id==='__NEXT_DATA__'))) { continue; }
+            if (strlen($script->textContent)>2*1024*1024) { continue; }
+            $data=json_decode($script->textContent,true,64);
+            if (!is_array($data)) { continue; }
+            if ($type==='application/ld+json') { $walk($data); continue; }
+            $node=$id==='__NEXT_DATA__' ? ($data['props']['pageProps']['product'] ?? []) : ($data['product'] ?? $data);
+            if (is_array($node) && is_string($node['title'] ?? $node['name'] ?? null)) {
+                // Nur ausdrücklich markierte Produktdaten; keine beliebige App-Konfiguration.
+                $products[]=['score'=>-10,'node'=>[
+                    '@type'=>'Product','name'=>$node['title'] ?? $node['name'],
+                    'description'=>is_string($node['description'] ?? null) ? $node['description'] : '',
+                    'image'=>$node['images'] ?? $node['image'] ?? $node['featured_image'] ?? [],
+                ]];
+            }
+        }
+        usort($products,fn($a,$b)=>$b['score']<=>$a['score']);
+        $product=$products[0]['node'] ?? [];
+        // ImageObject-Referenzen in @graph auflösen; Zyklen bleiben tiefenbegrenzt.
+        $expand=function(mixed $value,int $depth=0) use (&$expand,$index): mixed {
+            if ($depth>8 || !is_array($value)) { return $depth>8 ? [] : $value; }
+            if (count($value)===1 && is_string($value['@id'] ?? null) && isset($index[$value['@id']])) { return $expand($index[$value['@id']],$depth+1); }
+            foreach ($value as $key=>$child) { if (is_array($child)) { $value[$key]=$expand($child,$depth+1); } }
+            return $value;
+        };
+        return $expand($product);
+    }
+
+    private static function imageValues(mixed $value,int $depth=0): array
+    {
+        if ($depth>8) { return []; }
+        if (is_string($value)) { return [$value]; }
+        if (!is_array($value)) { return []; }
+        $images=[];
+        foreach (array_is_list($value) ? $value : array_intersect_key($value,array_flip(['contentUrl','url','src','originalSrc','thumbnailUrl','image'])) as $child) {
+            $images=array_merge($images,self::imageValues($child,$depth+1));
+            if (count($images)>=24) { break; }
+        }
+        return array_slice($images,0,24);
+    }
+
+    private static function srcset(string $value): array
+    {
+        $images=[];
+        preg_match_all('~(?:^|,\s*)(\S+)\s+(\d+(?:\.\d+)?)(w|x)(?=\s*(?:,|$))~',$value,$matches,PREG_SET_ORDER);
+        foreach ($matches as $match) { $images[]=['url'=>$match[1],'size'=>(float)$match[2]]; }
+        usort($images,fn($a,$b)=>$b['size']<=>$a['size']);
+        return array_column($images,'url');
+    }
+
+    private static function imageCandidates(\DOMXPath $xp,string $url,array $product,string $hero): array
+    {
+        $images=[];
+        $add=function(string $value) use (&$images,$url): void {
+            if (count($images)>=24 || in_array(strtolower(trim($value)),['','false','true','null','undefined'],true)) { return; }
+            try { $src=self::resolveUrl($url,$value); } catch (Problem) { return; }
+            $path=parse_url($src,PHP_URL_PATH) ?: '';
+            if (preg_match('~(?:^|[/_.-])(?:placeholder|spacer|transparent(?:-pixel)?|grey-pixel|blank|pixel|loader|loading)(?:[/_.-]|$)|\.(?:svg|gif)(?:$)~i',$path)) { return; }
+            $images[$src]=true;
+        };
+        if (self::amazon($url)) { $add($hero); }
+        foreach (self::imageValues($product['image'] ?? []) as $src) { $add($src); }
+        // Mehrere Metadaten behalten: ein defektes og:image darf nicht alle Alternativen verbergen.
+        foreach (['og:image:secure_url','og:image','og:image:url','twitter:image','twitter:image:src'] as $key) {
+            foreach ($xp->query('//meta') as $meta) {
+                if (strtolower($meta->getAttribute('property') ?: $meta->getAttribute('name'))===$key) { $add($meta->getAttribute('content')); }
+            }
+        }
+        foreach ($xp->query('//link') as $link) {
+            if (in_array('image_src',preg_split('/\s+/',strtolower($link->getAttribute('rel'))),true)) { $add($link->getAttribute('href')); }
+        }
+        $nodes=[];
+        foreach ($xp->query('//*[@itemprop]') as $node) {
+            if (in_array('image',preg_split('/\s+/',strtolower($node->getAttribute('itemprop'))),true)) {
+                $nodes[]=$node;
+                foreach ($xp->query('.//img | .//*[@itemprop="contentUrl" or @itemprop="url"]',$node) as $child) { $nodes[]=$child; }
+            }
+        }
+        // Nur klar erkennbare Produkt-/Hauptbilder, keine beliebigen Werbebanner oder Logos.
+        foreach ($xp->query('//img') as $node) {
+            if ($node->hasAttribute('width') && $node->hasAttribute('height') && (int)$node->getAttribute('width')<=32 && (int)$node->getAttribute('height')<=32) { continue; }
+            $context=''; $parent=$node;
+            for ($i=0;$i<8 && $parent instanceof \DOMElement;$i++,$parent=$parent->parentNode) { $context.=' '.$parent->getAttribute('id').' '.$parent->getAttribute('class').' '.$parent->getAttribute('data-testid'); }
+            if (preg_match('/recommend|related|similar|upsell|cross.?sell|carousel-reco/i',$context)) { continue; }
+            if (preg_match('/product.{0,24}(?:image|gallery|photo)|(?:image|gallery|photo).{0,24}product|pdp.{0,16}(?:image|gallery)|hero[-_ ]?image|landingImage|imgBlkFront/i',$context)) { $nodes[]=$node; }
+        }
+        foreach ($nodes as $node) {
+            $picture=$xp->query('ancestor::picture[1]',$node)->item(0);
+            if ($picture) {
+                foreach ($picture->getElementsByTagName('source') as $source) {
+                    // Die lokal unterstützten Formate gegenüber AVIF bevorzugen.
+                    if (in_array(strtolower($source->getAttribute('type')),['','image/jpeg','image/png','image/webp'],true)) {
+                        foreach (['data-srcset','srcset'] as $attr) { foreach (self::srcset($source->getAttribute($attr)) as $src) { $add($src); } }
+                    }
+                }
+            }
+            foreach (['content','href','data-old-hires','data-a-hires','data-zoom-image','data-large-image'] as $attr) { $add($node->getAttribute($attr)); }
+            foreach (['data-srcset','data-lazy-srcset','srcset'] as $attr) { foreach (self::srcset($node->getAttribute($attr)) as $src) { $add($src); } }
+            $dynamic=json_decode($node->getAttribute('data-a-dynamic-image'),true,8);
+            if (is_array($dynamic)) {
+                $sizes=[];
+                foreach ($dynamic as $src=>$dimensions) {
+                    if (is_string($src) && is_numeric($dimensions[0] ?? null) && is_numeric($dimensions[1] ?? null)) { $sizes[$src]=(float)$dimensions[0]*(float)$dimensions[1]; }
+                }
+                arsort($sizes); foreach (array_keys($sizes) as $src) { $add($src); }
+            }
+            foreach (['data-original','data-src','data-lazy-src','data-image'] as $attr) { $add($node->getAttribute($attr)); }
+            $add($node->getAttribute('src'));
+        }
+        return array_keys($images);
+    }
+
     private static function amazonFields(\DOMXPath $xp,array &$out): void
     {
         $title=self::nodeText($xp,"//*[@id='productTitle' or @id='title_feature_div']//span[@id='productTitle'] | //*[@id='productTitle']");
@@ -183,7 +353,11 @@ final class Metadata
         $result=['title'=>'','description'=>'','price'=>'','productUrl'=>self::canonicalUrl($url),'imageUrl'=>''];
         if (!class_exists('DOMDocument')) { return $result; }
         $doc=new \DOMDocument(); $prev=libxml_use_internal_errors(true);
-        try { $doc->loadHTML('<?xml encoding="utf-8" ?>'.$html,LIBXML_NONET|LIBXML_NOERROR|LIBXML_NOWARNING); }
+        try {
+            if (!$doc->loadHTML('<?xml encoding="utf-8" ?>'.self::compactHtml($html),LIBXML_NONET|LIBXML_NOERROR|LIBXML_NOWARNING)) {
+                throw self::unavailable('Die Shopseite konnte nicht vollständig gelesen werden. Bitte manuell ergänzen.');
+            }
+        }
         finally { libxml_clear_errors(); libxml_use_internal_errors($prev); }
         $xp=new \DOMXPath($doc);
         $documentTitle=self::nodeText($xp,'//title');
@@ -195,18 +369,20 @@ final class Metadata
         foreach ($doc->getElementsByTagName('meta') as $meta) {
             $key=strtolower($meta->getAttribute('property') ?: $meta->getAttribute('name'));
             $value=$meta->getAttribute('content');
-            $field=['og:title'=>'title','og:description'=>'description','og:image'=>'imageUrl','product:price:amount'=>'price','og:price:amount'=>'price'][$key] ?? null;
+            $field=['og:title'=>'title','twitter:title'=>'title','og:description'=>'description','description'=>'description','twitter:description'=>'description','og:image'=>'imageUrl','product:price:amount'=>'price','og:price:amount'=>'price'][$key] ?? null;
             if ($field && $result[$field]==='') { $result[$field]=$value; }
             if (in_array($key,['product:price:currency','og:price:currency'],true)) { $currency=strtoupper(trim($value)); }
         }
         if ($currency!=='' && $currency!=='EUR') { $result['price']=''; }
-        foreach ($doc->getElementsByTagName('script') as $script) {
-            if (strtolower(trim($script->getAttribute('type')))!=='application/ld+json') { continue; }
-            $data=json_decode($script->textContent,true,32);
-            if (is_array($data)) { self::product($data,$result); }
-        }
+        $product=self::structuredProduct($doc,$url);
+        self::product($product,$result);
         if (self::amazon($url)) { self::amazonFields($xp,$result); }
-        if ($result['title']==='') { $result['title']=$documentTitle; }
+        $imageBase=$url;
+        $base=$xp->query('//base[@href]')->item(0);
+        if ($base) { try { $imageBase=self::resolveUrl($url,$base->getAttribute('href')); } catch (Problem) {} }
+        $result['imageUrls']=self::imageCandidates($xp,$imageBase,$product,$result['imageUrl']);
+        $result['imageUrl']=$result['imageUrls'][0] ?? '';
+        if ($result['title']==='') { $result['title']=self::nodeText($xp,'//h1') ?: $documentTitle; }
         if (self::amazon($url)) {
             $result['title']=preg_replace('/\s*:\s*Amazon\.de\b.*$/iu','',$result['title']) ?? '';
             if (preg_match('/^(?:Amazon(?:\.de)?|Amazon\s+(?:Sign[- ]?In|Anmelden))$/i',trim($result['title']))) { $result['title']=''; }
@@ -216,22 +392,15 @@ final class Metadata
             $result[$key]=self::truncate($value,$limit);
         }
         $result['price']=self::price($result['price']);
-        if ($result['imageUrl']!=='') {
-            try { $result['imageUrl']=self::resolveUrl($url,$result['imageUrl']); }
-            catch (Problem) { $result['imageUrl']=''; }
-        }
         return $result;
     }
 
     private static function product(array $node,array &$out): void
     {
-        if (in_array('Product',(array)($node['@type'] ?? []),true)) {
+        if (self::schemaType($node,'Product') || self::schemaType($node,'ProductGroup')) {
             foreach (['name'=>'title','description'=>'description'] as $key=>$field) {
                 if ($out[$field]==='' && is_string($node[$key] ?? null)) { $out[$field]=strip_tags($node[$key]); }
             }
-            $image=$node['image'] ?? '';
-            if (is_array($image)) { $image=$image['url'] ?? $image[0] ?? ''; }
-            if ($out['imageUrl']==='' && is_string($image)) { $out['imageUrl']=$image; }
             $offers=$node['offers'] ?? [];
             if (is_array($offers)) {
                 if (!array_is_list($offers)) { $offers=[$offers]; }
@@ -240,7 +409,6 @@ final class Metadata
                 }
             }
         }
-        foreach ($node as $child) { if (is_array($child)) { self::product($child,$out); } }
     }
 
     private static function fallback(string $url): array
@@ -255,24 +423,35 @@ final class Metadata
     public static function preview(string $url): array
     {
         unset($_SESSION['importImage']);
-        $target=self::canonicalUrl($url); $warning='';
+        $target=self::canonicalUrl($url); $warning=''; $deadline=microtime(true)+25;
         try {
-            $page=self::fetch($target); $result=self::parse($page['body'],$page['url']);
+            $page=self::fetch($target,self::MAX_HTML_BYTES,$deadline); $result=self::parse($page['body'],$page['url']);
+            unset($page);
             if ($result['title']==='') { $warning='Keine verlässlichen Produktdaten erkannt. Bitte Titel, Preis und Bild selbst ergänzen.'; }
         } catch (Problem $error) {
             // Sicherheits-/Validierungsfehler bleiben Fehler. Nur Shop-Ausfälle erlauben manuelle Vorschau.
             if ($error->reason!=='shop_unavailable') { throw $error; }
             $result=self::fallback($url);
-            $warning=(self::amazon($target) ? 'Amazon liefert gerade keine auslesbaren Produktdaten. ' : 'Der Shop ist gerade nicht auslesbar. ')
+            $warning=(self::amazon($target) ? 'Amazon liefert gerade keine auslesbaren Produktdaten. ' : $error->getMessage().' ')
                 .'Der Link wurde übernommen. Bitte Titel, Preis und Bild selbst ergänzen bzw. prüfen.';
             if ($result['title']!=='') { $warning.=' Der vorgeschlagene Titel stammt nur aus dem Link.'; }
         }
-        if ($result['imageUrl']!=='') {
-            try { $img=self::fetch($result['imageUrl'],2*1024*1024); $_SESSION['importImage']=['at'=>time(),'image'=>App::imageBytes($img['body'])]; }
-            catch (Problem) { $warning=trim($warning.' Das Produktbild konnte nicht übernommen werden; ein eigenes Bild ist weiterhin möglich.'); }
+        $images=array_slice($result['imageUrls'] ?? [],0,self::MAX_IMAGE_ATTEMPTS);
+        foreach ($images as $imageUrl) {
+            if (microtime(true)>=$deadline) { break; }
+            try {
+                $img=self::fetch($imageUrl,2*1024*1024,$deadline);
+                $_SESSION['importImage']=['at'=>time(),'image'=>App::imageBytes($img['body'])];
+                break;
+            } catch (Problem) { /* Weiter mit dem nächsten Bild derselben Produktseite. */ }
+        }
+        if ($images && !isset($_SESSION['importImage'])) {
+            $warning=trim($warning.' Die gefundenen Produktbilder konnten nicht übernommen werden. Bitte eine Bildadresse oder ein eigenes Bild ergänzen.');
+        } elseif (!$images && $warning==='') {
+            $warning='Produktdaten übernommen, aber kein Produktbild gefunden. Bitte eine Bildadresse oder ein eigenes Bild ergänzen.';
         }
         $result['hasImage']=isset($_SESSION['importImage']); $result['warning']=$warning;
-        unset($result['imageUrl']); return $result;
+        unset($result['imageUrl'],$result['imageUrls']); return $result;
     }
 
     public static function mergePreview(array $preview,array $input): array

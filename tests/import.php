@@ -62,6 +62,8 @@ namespace {
     $long=Metadata::parse('<span id="productTitle">'.str_repeat('Ä',200).'</span>',$url);
     verify(strlen($long['title'])===200 && preg_match('//u',$long['title'])===1,'Long Unicode title preserved without broken UTF-8');
     verify(Metadata::resolveUrl('https://shop.example/a/b/item','../product?x=1')==='https://shop.example/a/product?x=1','Relative redirect segments');
+    verify(Metadata::resolveUrl('https://shop.example/catalog/','picture.jpg')==='https://shop.example/catalog/picture.jpg','Relative image below a directory URL');
+    verify(Metadata::resolveUrl('https://shop.example/catalog/item','../new/')==='https://shop.example/new/','Redirect preserves trailing directory slash');
     blocked(fn()=>Metadata::resolveUrl($url,'file:///etc/passwd'));
     $_SESSION=[];
     $GLOBALS['replies']=[['status'=>200,'body'=>'<!--'.str_repeat('x',1048576).'-->'.$html],['status'=>200,'body'=>base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6C6sAAAAASUVORK5CYII=')]];
@@ -85,6 +87,60 @@ namespace {
     $merged=Metadata::mergePreview($preview,['id'=>'','listId'=>'list','title'=>'Mein eigener Titel','description'=>'Eigene Beschreibung','price'=>'0','quantity'=>'2']);
     verify($merged['title']==='Mein eigener Titel' && $merged['description']==='Eigene Beschreibung' && $merged['price']==='0' && $merged['quantity']==='2','Manual values preserved, including zero price');
     verify(Metadata::mergePreview($preview,['title'=>' '])['title']===$parsed['title'],'Blank field receives preview');
+    $structured=Metadata::parse(file_get_contents(__DIR__.'/fixtures/shop-structured.html'),'https://shop.example/product');
+    verify($structured['title']==='Wunschprodukt' && $structured['price']==='39.95','Select mainEntity product instead of preceding unrelated product');
+    verify($structured['imageUrls']===['https://images.example/hero.jpg','https://shop.example/second.webp','https://shop.example/fallback.jpg'],'JSON-LD graph, referenced ImageObject, image array and metadata fallback');
+    $gallery=Metadata::parse(file_get_contents(__DIR__.'/fixtures/shop-gallery.html'),'https://shop.example/product');
+    verify($gallery['title']==='Galerieprodukt','HTML heading fallback');
+    verify($gallery['imageUrls']===['https://images.example/large.webp','https://images.example/small.webp','https://shop.example/catalog/photo-900.jpg','https://shop.example/catalog/photo-400.jpg','https://shop.example/catalog/photo.jpg'],'Picture, lazy images, srcset sizes and HTML base; exclude AVIF, placeholders, logos, related products and tracker');
+    foreach ([
+        '<meta name="twitter:image" content="/twitter.jpg">'=>'https://shop.example/twitter.jpg',
+        '<link rel="image_src" href="/linked.jpg">'=>'https://shop.example/linked.jpg',
+        '<meta itemprop="image" content="/micro.jpg">'=>'https://shop.example/micro.jpg',
+        '<div itemprop="image" itemscope itemtype="https://schema.org/ImageObject"><meta itemprop="contentUrl" content="/object.jpg"></div>'=>'https://shop.example/object.jpg',
+        '<div class="product-gallery"><img data-src="/lazy.jpg" src="data:image/png;base64,AAAA"></div>'=>'https://shop.example/lazy.jpg',
+        '<script type="application/ld+json">{"@type":"Product","image":[{"url":"/array.jpg"}]}</script>'=>'https://shop.example/array.jpg',
+        '<script type="application/json" id="ProductJson-main">{"title":"Shopprodukt","images":[{"src":"/shopify.jpg"}]}</script>'=>'https://shop.example/shopify.jpg',
+        '<script type="application/json" id="__NEXT_DATA__">{"props":{"pageProps":{"product":{"name":"Shopprodukt","images":[{"url":"/next.jpg"}]}}}}</script>'=>'https://shop.example/next.jpg',
+    ] as $fragment=>$expected) {
+        verify(Metadata::parse($fragment,'https://shop.example/product')['imageUrl']===$expected,'Additional image source: '.$expected);
+    }
+    $bad=Metadata::parse('<meta property="og:image" content="javascript:alert(1)"><meta name="twitter:image" content="file:///etc/passwd"><img class="product-image" data-src="false" src="/placeholder.jpg"><script type="application/ld+json">{invalid}</script>','https://shop.example/product');
+    verify($bad['imageUrl']==='','Invalid metadata, placeholders and unsupported URL schemes are skipped');
+    $related=Metadata::parse('<script type="application/ld+json">{"@type":"ItemList","itemListElement":[{"@type":"Product","image":"/wrong.jpg"}]}</script>','https://shop.example/product');
+    verify($related['imageUrl']==='','Product lists are not mistaken for the main product');
+    $GLOBALS['replies']=[['status'=>200,'body'=>str_repeat(' ',5*1024*1024).file_get_contents(__DIR__.'/fixtures/shop-structured.html')]];
+    $large=Metadata::fetch('https://shop.example/product');
+    verify(strlen($large['body'])>4*1024*1024 && Metadata::parse($large['body'],$large['url'])['title']==='Wunschprodukt','Page above former 4 MB boundary, with product metadata at the end');
+    $scriptHeavy='<script>'.str_repeat('x',11*1024*1024).'</script><title>Späte Produktdaten</title><meta property="og:image" content="/late.jpg">';
+    $late=Metadata::parse($scriptHeavy,'https://shop.example/product'); unset($scriptHeavy);
+    verify($late['title']==='Späte Produktdaten' && $late['imageUrl']==='https://shop.example/late.jpg','Oversized script block does not hide later metadata or require relaxed XML limits');
+    $GLOBALS['replies']=[['status'=>200,'body'=>str_repeat('x',Metadata::MAX_HTML_BYTES+1)]];
+    try { Metadata::fetch('https://shop.example/product'); throw new RuntimeException('Expected size limit'); }
+    catch (Problem $e) { verify(str_contains($e->getMessage(),'12 MB'),'Decompressed page limit has a specific explanation'); }
+    $GLOBALS['replies']=[['status'=>200,'body'=>str_repeat(' ',Metadata::MAX_HTML_BYTES)]];
+    verify(strlen(Metadata::fetch('https://shop.example/product')['body'])===Metadata::MAX_HTML_BYTES,'Exact page size boundary is accepted');
+    $png=base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6C6sAAAAASUVORK5CYII=');
+    $fallbackHtml='<title>Produkt</title><meta property="og:image" content="/broken.jpg"><meta property="og:image" content="/broken.jpg"><meta name="twitter:image" content="/not-an-image.jpg"><div class="product-gallery"><img data-src="/working.png"></div>';
+    $GLOBALS['replies']=[['status'=>200,'body'=>$fallbackHtml],['status'=>404],['status'=>200,'body'=>'<html>Bot check</html>'],['status'=>200,'body'=>$png]];
+    $before=count($GLOBALS['calls']); $recovered=Metadata::preview('https://shop.example/product');
+    verify($recovered['hasImage'] && $recovered['warning']==='' && count($GLOBALS['calls'])===$before+4,'Recover from broken and invalid images, deduplicate sources');
+    verify(!isset($recovered['imageUrls'],$recovered['imageUrl']),'Internal image candidates never escape into form/API preview');
+    verify($GLOBALS['replies']===[],'Expected image fallback sequence completed');
+    $GLOBALS['replies']=[['status'=>200,'body'=>'<title>Produkt</title><meta property="og:image" content="/huge.png"><meta name="twitter:image" content="https://images.example/smaller.jpg">'],['status'=>200,'body'=>str_repeat('x',2*1024*1024+1)],['status'=>200,'body'=>$png]];
+    verify(Metadata::preview('https://shop.example/product')['hasImage'],'Oversized original falls back to smaller supported product image');
+    $GLOBALS['replies']=[['status'=>200,'body'=>'<title>Produkt</title><meta property="og:image" content="http://127.0.0.1/private"><meta name="twitter:image" content="https://images.example/safe.png">'],['status'=>200,'body'=>$png]];
+    verify(Metadata::preview('https://shop.example/product')['hasImage'],'Unsafe image destination skipped, safe alternative succeeds');
+    $GLOBALS['replies']=[['status'=>200,'body'=>'<title>Produkt</title><meta property="og:image" content="/redirect"><meta name="twitter:image" content="https://images.example/safe.png">'],['status'=>302,'headers'=>['location'=>'http://169.254.169.254/metadata']],['status'=>200,'body'=>$png]];
+    verify(Metadata::preview('https://shop.example/product')['hasImage'],'Image redirects are revalidated before safe fallback');
+    $many='<title>Produkt</title>';
+    for ($i=0;$i<10;$i++) { $many.='<meta property="og:image" content="/failed-'.$i.'.jpg">'; }
+    $GLOBALS['replies']=array_merge([['status'=>200,'body'=>$many]],array_fill(0,5,['status'=>404]));
+    $before=count($GLOBALS['calls']); $missing=Metadata::preview('https://shop.example/product');
+    verify(!$missing['hasImage'] && !isset($_SESSION['importImage']) && count($GLOBALS['calls'])===$before+6 && str_contains($missing['warning'],'Produktbilder'),'Bounded fallback attempts, explanatory warning, no stale image');
+    $GLOBALS['replies']=[['status'=>200,'body'=>'<title>Produkt ohne Bild</title>']];
+    verify(str_contains(Metadata::preview('https://shop.example/product')['warning'],'kein Produktbild'),'Missing-image result has an explicit explanation');
+    blocked(fn()=>Metadata::fetch('https://shop.example/product',1024,microtime(true)-1));
     $search=Metadata::googleImagesUrl('Orzly Lenkräder',$url); parse_str(parse_url($search,PHP_URL_QUERY),$searchParams);
     verify(parse_url($search,PHP_URL_HOST)==='www.google.com' && $searchParams['tbm']==='isch' && $searchParams['q']==='Orzly Lenkräder B0FLM3M1JJ','Explicit Google image search with product title and ASIN');
     verify(Metadata::googleImagesUrl('')==='https://www.google.com/imghp?hl=de','Manual search when title is empty');
