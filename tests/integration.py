@@ -53,6 +53,16 @@ def scenario(base):
   owner.post('import',{'productUrl':bad},422)
  code,body,headers=guest.request('index.php?page=list&id='+a)
  check(code==200 and b'Anmelden' in body and b'Buch &lt;' not in body,'Guest cannot view lists')
+ code,public_before,headers=guest.request('index.php?page=share&id='+a)
+ check(code==200 and b'Buch &lt;img' in public_before and b'Weihnachten' not in public_before,'Public link shows exactly the chosen list and escapes stored content')
+ check(headers['X-Robots-Tag']=='noindex, nofollow' and 'no-store' in headers['Cache-Control'],'Public view avoids search indexing and shared caches')
+ check(b'reservation-form' not in public_before and b'available' not in public_before and b'reservedByMe' not in public_before and b'Wunsch bearbeiten' not in public_before,'Public view has no mutations or reservation state')
+ check(('page=login&amp;returnList='+a).encode() in public_before,'Public reserve links lead to login with a scoped return target')
+ for bad in ['', 'not-an-id', 'f'*32, ['array']]:
+  query=urllib.parse.urlencode({'page':'share','id':bad},doseq=True)
+  check(guest.request('index.php?'+query)[0]==404,'Missing and invalid shared lists return 404')
+ check(guest.get('state')[0]==401,'Sharing does not unlock the full snapshot')
+ guest.post('reserve',{'id':wish},401)
  code,body,headers=owner.request('index.php?page=list&id='+a)
  check(code==200 and b'&lt;script&gt;' in body and b'<script>alert' not in body,'Stored XSS escaped')
  check('frame-ancestors' in headers['Content-Security-Policy'],'CSP present')
@@ -109,7 +119,7 @@ def scenario(base):
  owner.post('deleteWish',{'id':asin_wish,'confirm':'yes'})
  html,form=import_form('https://www.amazon.de/Cuisinart-Farb-Touchscreen-Toaster/dp/B0G1586BZG/?th=1')
  check('Platzhalter (1 × 1 Pixel)' in html and 'useImportedImage' not in form,'Reported toaster shows actual placeholder reason instead of a successful or stale image preview')
- check('google-image-search' in html and form['title']=='Cuisinart Farb Touchscreen Toaster','Placeholder result retains title proposal and manual image search')
+ check('google-image-search' not in html and form['title']=='Cuisinart Farb Touchscreen Toaster','Placeholder result retains title proposal without Google search')
  html,form=import_form('https://www.amazon.de/Manuell-speichern/dp/B000000503/')
  check('Amazon liefert gerade keine auslesbaren Produktdaten' in html and 'Vorschau geladen' not in html,'503 fallback is not claimed as a successful import')
  check('useImportedImage' not in form and form['title']=='Manuell speichern','Failed import never reuses old image')
@@ -128,6 +138,7 @@ def scenario(base):
  with concurrent.futures.ThreadPoolExecutor(max_workers=10) as pool: statuses=list(pool.map(lambda u:reserve(u,wish),users))
  check(statuses.count(200)==1 and statuses.count(409)==9,'Exactly one winner among 10 requests: '+str(statuses))
  winner=users[statuses.index(200)]; winner.post('reserve',{'id':wish},409)
+ check(guest.request('index.php?page=share&id='+a)[1]==public_before,'Anonymous view stays byte-identical after reserving: no surprise leaked')
  before=owner.get('state')[1]['data']
  check(all('available' not in w and 'reservedByMe' not in w for w in before['wishes']),'Owner API has no reservation fields')
  check('reservations' not in before and 'passwordHash' not in json.dumps(before),'No private table or hash exposure')
@@ -144,9 +155,9 @@ def scenario(base):
  code,body,_=owner.request('api/index.php?action=saveWish',b'{oops',{'Content-Type':'application/json','X-CSRF-Token':owner.csrf}); check(code==400 and not json.loads(body)['ok'],'Malformed JSON')
  code,body,_=guest.request('media.php?type=wishes&id='+wish); check(code==401,'Media requires login')
  # Multipart signatures are authoritative, not filenames or browser MIME headers.
- def upload(content, filename, mime, expected):
+ def upload(content, filename, mime, expected, extra=None):
   boundary='mywish-boundary-123456'
-  fields={'action':'saveWish','listId':a,'title':'Bildtest','csrf':owner.csrf}
+  fields={'action':'saveWish','listId':a,'title':'Bildtest','csrf':owner.csrf,**(extra or {})}
   body=b''
   for key,value in fields.items():
    body+=f'--{boundary}\r\nContent-Disposition: form-data; name="{key}"\r\n\r\n{value}\r\n'.encode()
@@ -157,7 +168,23 @@ def scenario(base):
  upload(b'<?php echo "hack";','image.png','image/png',422)
  upload(b'<svg onload="alert(1)"></svg>','image.png','image/png',422)
  import base64
- image=upload(base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6C6sAAAAASUVORK5CYII='),'image.png','application/octet-stream',201)['data']['id']
+ image=upload(base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAADElEQVQImWNgYGAAAAAEAAGjChXjAAAAAElFTkSuQmCC'),'image.png','application/octet-stream',201)['data']['id']
+ code,body,headers=guest.request('media.php?type=wishes&id='+image+'&share='+a)
+ check(code==200 and headers['Content-Type']=='image/png','Shared wish image is readable without login')
+ check(guest.request('media.php?type=wishes&id='+image+'&share='+b)[0]==404,'Other list IDs do not unlock an image')
+ check(guest.request('media.php?type=preview&share='+a)[0]==401,'Public link never unlocks session previews')
+ upload(base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAADElEQVQImWNgYGAAAAAEAAGjChXjAAAAAElFTkSuQmCC'),'cover.png','image/png',200,{'action':'saveList','id':b,'name':'Weihnachten','occasion':'Weihnachten'})
+ check(guest.request('media.php?type=lists&id='+b+'&share='+b)[0]==200,'Shared list cover is readable without login')
+ check(guest.request('media.php?type=lists&id='+b+'&share='+a)[0]==404,'Public cover access is scoped to its list')
+ import struct,zlib
+ def png_chunk(kind,data): return struct.pack('>I',len(data))+kind+data+struct.pack('>I',zlib.crc32(kind+data)&0xffffffff)
+ screenshot=b'\x89PNG\r\n\x1a\n'+png_chunk(b'IHDR',struct.pack('>IIBBBBB',1080,2400,8,2,0,0,0))+png_chunk(b'IDAT',zlib.compress((b'\0'+b'\x80\x40\xff'*1080)*2400))+png_chunk(b'IEND',b'')
+ screenshot+=b'x'*(8*1024*1024-len(screenshot))
+ screenshot_id=upload(screenshot,'Handy-Screenshot.png','image/png',201)['data']['id']
+ _,resized,_=owner.request('media.php?type=wishes&id='+screenshot_id)
+ check(struct.unpack('>II',resized[16:24])==(540,1200) and len(resized)<2097152,'Real 8 MB multipart upload is stored as a small preview')
+ upload(screenshot+b'x','zu-gross.png','image/png',422)
+ owner.post('deleteWish',{'id':screenshot_id,'confirm':'yes'})
  code,body,headers=users[0].request('media.php?type=wishes&id='+image)
  check(code==200 and headers['Content-Type']=='image/png' and body.startswith(b'\x89PNG'),'Authorized fixed MIME media')
  owner.post('saveWish',{'id':image,'listId':a,'title':'Unchanged image','_image':{'tmp_name':'/etc/passwd','error':0,'size':100}})
@@ -171,10 +198,21 @@ def scenario(base):
  other.post('login',{'username':'antonia','password':' Abcdefgh '})
  owner.post('account',{'name':'Antonia Neu','currentPassword':' Abcdefgh ','newPassword':'Changed1'})
  check(other.get('state')[0]==401,'Password change invalidates other sessions')
+ returning=Client(base)
+ returning.request('index.php?page=login&returnList='+a)
+ failed={'action':'login','csrf':returning.csrf,'username':'giver0','password':'wrong','returnList':a}
+ check(returning.request('index.php?page=login',urllib.parse.urlencode(failed).encode(),{'Content-Type':'application/x-www-form-urlencoded'})[0]==401,'Failed password login retains the login page')
+ failed['password']='abcdefgh'
+ code,body,_=returning.request('index.php?page=login',urllib.parse.urlencode(failed).encode(),{'Content-Type':'application/x-www-form-urlencoded'})
+ check(code==200 and b'Buch &lt;img' in body and b'reservation-form' in body,'Successful form login returns to the shared list')
+ registered=Client(base)
+ code,body,_=registered.request('index.php?page=register&returnList='+a,urllib.parse.urlencode({'action':'register','csrf':registered.csrf,'returnList':a,'name':'Neuer Gast','username':'shared-new','password':'abcdefgh'}).encode(),{'Content-Type':'application/x-www-form-urlencoded'})
+ check(code==200 and b'Buch &lt;img' in body,'New registrations also return to the shared list')
  # Login rate limiting; repeated wrong attempts share an IP as in production.
  for i in range(10): guest.post('login',{'username':'missing','password':'wrong'},401)
  guest.post('login',{'username':'missing','password':'wrong'},429)
  owner.post('deleteList',{'id':a,'confirm':'yes'})
+ check(guest.request('index.php?page=share&id='+a)[0]==404,'Deleting a list invalidates its public link')
  owner.post('deleteAccount',{'currentPassword':'Changed1','confirm':'yes'})
  check(owner.get('state')[0]==401,'Account deletion invalidates session')
 
@@ -188,7 +226,7 @@ with tempfile.TemporaryDirectory(prefix='mywish-http-') as temp:
  sock=socket.socket(); sock.bind(('127.0.0.1',0)); port=sock.getsockname()[1]; sock.close()
  env=dict(os.environ,PHP_CLI_SERVER_WORKERS='4')
  log=open(doc/'server.log','w')
- process=subprocess.Popen([PHP,'-d','upload_max_filesize=2M','-d','post_max_size=4M','-S',f'127.0.0.1:{port}','-t',str(doc)],env=env,stdout=log,stderr=log,start_new_session=True)
+ process=subprocess.Popen([PHP,'-d','upload_max_filesize=8M','-d','post_max_size=10M','-S',f'127.0.0.1:{port}','-t',str(doc)],env=env,stdout=log,stderr=log,start_new_session=True)
  try:
   for i in range(100):
    try:

@@ -68,7 +68,7 @@ namespace {
     verify(Metadata::resolveUrl('https://shop.example/catalog/item','../new/')==='https://shop.example/new/','Redirect preserves trailing directory slash');
     blocked(fn()=>Metadata::resolveUrl($url,'file:///etc/passwd'));
     $_SESSION=[];
-    $GLOBALS['replies']=[['status'=>200,'body'=>'<!--'.str_repeat('x',1048576).'-->'.$html],['status'=>200,'body'=>base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6C6sAAAAASUVORK5CYII=')]];
+    $GLOBALS['replies']=[['status'=>200,'body'=>'<!--'.str_repeat('x',1048576).'-->'.$html],['status'=>200,'body'=>base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAADElEQVQImWNgYGAAAAAEAAGjChXjAAAAAElFTkSuQmCC')]];
     $preview=Metadata::preview($url);
     verify($preview['title']===$parsed['title'] && $preview['hasImage'] && $preview['warning']==='','Large Amazon page and checked image preview');
     $last=array_slice($GLOBALS['calls'],-2);
@@ -94,7 +94,7 @@ namespace {
     verify($last[1]->url==='https://m.media-amazon.com/images/P/B0FCG8N5NC.01.L.jpg','Direct image URL uses only validated Amazon ASIN');
     verify(str_contains($direct['warning'],'Amazon liefert gerade keine auslesbaren Produktdaten') && str_contains($direct['warning'],'Amazon-Artikelnummer') && str_contains($direct['warning'],'nur aus dem Link'),'Partial import explains unavailable product data, inferred title and image review');
     verify(!str_contains($direct['warning'],'Bild selbst ergänzen') && !isset($direct['imageUrl'],$direct['imageUrls']),'Successful fallback has no misleading missing-image request or external image fields');
-    verify($_SESSION['importImage']['image']['data']===base64_encode($productImage),'Checked fallback bytes are held locally for explicit save');
+    verify(getimagesizefromstring(base64_decode($_SESSION['importImage']['image']['data']))[0]===128,'Checked fallback bytes are held locally for explicit save');
     // Reales Antwortformat des gemeldeten Toasters: HTTP 200, aber 1x1-GIF an .jpg-Adresse.
     $pixelGif=base64_decode('R0lGODlhAQABAIABAAAAAP///yH5BAEAAAEALAAAAAABAAEAAAICTAEAOw==');
     $GLOBALS['replies']=[['status'=>503],['status'=>200,'headers'=>['content-type'=>'image/gif'],'body'=>$pixelGif]];
@@ -110,7 +110,7 @@ namespace {
     verify(Metadata::preview('https://m.amazon.de/gp/aw/d/b0fcg8n5nc/ref=test')['hasImage'],'Canonicalized mobile URL supports ASIN image fallback');
     foreach ([
         ['status'=>404],['status'=>200,'body'=>'<svg></svg>'],
-        ['status'=>200,'body'=>base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6C6sAAAAASUVORK5CYII=')],
+        ['status'=>200,'body'=>base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAADElEQVQImWNgYGAAAAAEAAGjChXjAAAAAElFTkSuQmCC')],
         ['status'=>200,'body'=>str_repeat('x',2*1024*1024+1)],
         ['status'=>302,'headers'=>['location'=>'http://127.0.0.1/private']],
     ] as $badImage) {
@@ -171,7 +171,7 @@ namespace {
     catch (Problem $e) { verify(str_contains($e->getMessage(),'12 MB'),'Decompressed page limit has a specific explanation'); }
     $GLOBALS['replies']=[['status'=>200,'body'=>str_repeat(' ',Metadata::MAX_HTML_BYTES)]];
     verify(strlen(Metadata::fetch('https://shop.example/product')['body'])===Metadata::MAX_HTML_BYTES,'Exact page size boundary is accepted');
-    $png=base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6C6sAAAAASUVORK5CYII=');
+    $png=base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAADElEQVQImWNgYGAAAAAEAAGjChXjAAAAAElFTkSuQmCC');
     $fallbackHtml='<title>Produkt</title><meta property="og:image" content="/broken.jpg"><meta property="og:image" content="/broken.jpg"><meta name="twitter:image" content="/not-an-image.jpg"><div class="product-gallery"><img data-src="/working.png"></div>';
     $GLOBALS['replies']=[['status'=>200,'body'=>$fallbackHtml],['status'=>404],['status'=>200,'body'=>'<html>Bot check</html>'],['status'=>200,'body'=>$png]];
     $before=count($GLOBALS['calls']); $recovered=Metadata::preview('https://shop.example/product');
@@ -192,10 +192,7 @@ namespace {
     $GLOBALS['replies']=[['status'=>200,'body'=>'<title>Produkt ohne Bild</title>']];
     verify(str_contains(Metadata::preview('https://shop.example/product')['warning'],'kein Produktbild'),'Missing-image result has an explicit explanation');
     blocked(fn()=>Metadata::fetch('https://shop.example/product',1024,microtime(true)-1));
-    $search=Metadata::googleImagesUrl('Orzly Lenkräder',$url); parse_str(parse_url($search,PHP_URL_QUERY),$searchParams);
-    verify(parse_url($search,PHP_URL_HOST)==='www.google.com' && $searchParams['tbm']==='isch' && $searchParams['q']==='Orzly Lenkräder B0FLM3M1JJ','Explicit Google image search with product title and ASIN');
-    verify(Metadata::googleImagesUrl('')==='https://www.google.com/imghp?hl=de','Manual search when title is empty');
-    $GLOBALS['replies']=[['status'=>200,'body'=>base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6C6sAAAAASUVORK5CYII=')]];
+    $GLOBALS['replies']=[['status'=>200,'body'=>base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAADElEQVQImWNgYGAAAAAEAAGjChXjAAAAAElFTkSuQmCC')]];
     verify(Metadata::imagePreview('https://images.example/manual.png')['hasImage'] && isset($_SESSION['importImage']),'Manual image address becomes checked local preview');
     blocked(fn()=>Metadata::imagePreview('http://127.0.0.1/private.png'));
     verify(!isset($_SESSION['importImage']),'Rejected manual image does not reuse prior preview');

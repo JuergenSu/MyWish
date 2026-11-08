@@ -1631,18 +1631,77 @@ legend {
   margin-top: 24px;
 }
 
-.image-search-help {
-  font-size: 0.83rem;
-  margin-top: 16px;
-  margin-bottom: 18px;
+.list-card {
+  display: flex;
+  flex-direction: column;
 }
-.image-search-help a {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 44px;
+.list-card > .card-link {
+  height: auto;
+  flex: 1;
 }
-.image-search-help .icon {
-  width: 17px;
-  height: 17px;
+.list-share {
+  padding: 0 20px 20px;
+}
+.share-control {
+  position: relative;
+  min-width: 0;
+}
+.share-control > summary {
+  list-style: none;
+}
+.share-control > summary::-webkit-details-marker {
+  display: none;
+}
+.share-panel {
+  position: absolute;
+  z-index: 5;
+  right: 0;
+  top: calc(100% + 8px);
+  width: min(360px, calc(100vw - 40px));
+  padding: 18px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+.share-panel label {
+  font-size: 0.8rem;
+}
+.share-panel input {
+  min-width: 0;
+  width: 100%;
+}
+.share-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.share-buttons > .button {
+  font-size: 0.78rem;
+}
+.share-panel .field-help {
+  margin-top: 12px;
+}
+.list-share .share-panel {
+  position: static;
+  width: 100%;
+  margin-top: 8px;
+  box-shadow: none;
+}
+@media (max-width: 520px) {
+  .wishes-heading > .button-group {
+    flex-wrap: wrap;
+  }
+  .button-group > .share-control {
+    flex: 0 0 100%;
+  }
+  .button-group > .share-control > summary {
+    width: 100%;
+  }
+  .button-group .share-panel {
+    position: static;
+    width: 100%;
+    margin-top: 8px;
+  }
 }

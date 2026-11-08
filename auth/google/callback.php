@@ -9,7 +9,7 @@ try {
     $identity=$google->complete($_GET['code'],$pending);
     $app->googleIdentity($identity,$pending['purpose'],$pending);
     $_SESSION['flash']=match($pending['purpose']) { 'link'=>'Dein Google-Konto ist jetzt verknüpft.', 'reauthenticate'=>'Google bestätigt. Du kannst dein Konto jetzt für fünf Minuten bearbeiten.', default=>'Willkommen zurück!' };
-    header('Location: '.url($pending['purpose']==='login' ? '' : 'page=account'),true,303);
+    header('Location: '.url($pending['purpose']==='login' ? afterLoginQuery() : 'page=account'),true,303);
 } catch (Throwable $e) {
     [, $message]=safeError($e); $_SESSION['authError']=$message;
     header('Location: '.url(isset($_SESSION['userId']) ? 'page=account' : 'page=login'),true,303);

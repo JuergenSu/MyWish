@@ -2,7 +2,7 @@
 
 ## Vertrauensgrenzen
 
-Ein normales Konto ist entweder Eigentümer oder Schenkender im Kontext einer Liste. Alle eingeloggten Konten sehen jede Liste. Keine separaten Rollen/ACLs/Share-Tokens. Der Betreiber und sein Hosting haben Dateizugriff und sind vertrauenswürdig. Fremde Shops, Formulareingaben und Uploads sind nicht vertrauenswürdig. Eine frische Installation wird vor öffentlich möglicher Fremdeinrichtung per Hosting-Zugriffsschutz gesichert.
+Ein normales Konto ist entweder Eigentümer oder Schenkender im Kontext einer Liste. Alle eingeloggten Konten sehen jede Liste. Über den Teilen-Link mit zufälliger 128-Bit-Listen-ID kann jeder genau diese Liste lesen. Die ID ist hier der weitergebbare Lesezugang; keine separaten Rollen/ACLs/Share-Tokens. Es gibt keine anonyme Auflistung aller Listen und keine öffentliche Änderung. Reservierungsstände bleiben anonym verborgen, damit auch Eigentümer über ein privates Browserfenster keine Überraschung erfahren. Der Betreiber und sein Hosting haben Dateizugriff und sind vertrauenswürdig. Fremde Shops, Formulareingaben und Uploads sind nicht vertrauenswürdig. Eine frische Installation wird vor öffentlich möglicher Fremdeinrichtung per Hosting-Zugriffsschutz gesichert.
 
 | Bedrohung | Umsetzung / Prüfung |
 |---|---|
@@ -13,7 +13,7 @@ Ein normales Konto ist entweder Eigentümer oder Schenkender im Kontext einer Li
 | Brute Force | Zehn erfolglose Logins je gehashter IP in 15 Minuten, 30 Registrierungen separat; Ablaufbereinigung bei Login/Registrierung. Keine Passwort-/Tokenlogs. NAT kann mehrere Nutzer betreffen. |
 | XSS | Zentrales HTML-Escaping, URL-Scheme-Liste, kein innerHTML, lokale Skripte/CSS, CSP ohne unsafe-inline, kein SVG-Upload. Test mit aktiven HTML-Strings. |
 | SSRF / DNS Rebinding | Nur HTTP(S), keine Credentials/Sonderports. DNS-A-Ziele auf öffentliche IPv4 prüfen, konkret per CURLOPT_RESOLVE pinnen, Proxy deaktiviert, jeden Redirect erneut prüfen (max. 3). Kein Wechsel des aufgelösten Ziels beim Verbinden. Keine IPv6-/Übergangstunnel. Zeitlimit, Größenlimit und TLS-Prüfung. |
-| Fremde Bilder / Upload | Signatur und Dimensionen prüfen, kein Vertrauen in Browser-MIME/Dateiname. Bytes in geschütztem State, feste MIME-Auslieferung, nosniff. Keine frei wählbaren Pfade, nur echte PHP-Uploads. Bilder nie als Code eingebunden. |
+| Fremde Bilder / Upload | Signatur, Dimensionen und vollständige GD-Dekodierung prüfen; auf maximal 1200 Pixel verkleinern und neu kodieren, kein Vertrauen in Browser-MIME/Dateiname. Bytes in geschütztem State, feste MIME-Auslieferung, nosniff. Keine frei wählbaren Pfade, nur echte PHP-Uploads. Bilder nie als Code eingebunden. |
 | Rohdaten-Download | `.php`-Dateien mit ausführbarem 404/exit vor JSON; separate .htaccess als Zusatz. Tempdateien ebenfalls `.php` mit Guard. Storage außerhalb Webroot empfohlen. Direktzugriff getestet ohne Rewrite/.htaccess. |
 | Fehler und Datenverlust | JSON-/Schema-/Referenzprüfung, unbekannte Version sperrt, temporär schreiben + flush/fsync + rename unter separatem Lock. Abbruch vor Commit erhält alte Bytes. Einheitliche Fehler ohne absolute Pfade/Stacktraces. |
 | Backup / Restore | Nur vertrauenswürdiger Betreiber per SFTP/Dateimanager. Vor Wiederherstellung neue Instanz prüfen und aktuellen Stand sichern; kein öffentlicher Restore-Endpunkt. |
@@ -33,4 +33,6 @@ OAuth/OIDC-Codefluss mit PKCE, CSRF-geschütztem POST-Start, einmaligem Session-
 
 Keine Access-/Refresh-/ID-Tokens in Storage oder Logs; nur ein geschützter öffentlicher JWK-Cache. Ohne Nutzerklick keine Google-Anfragen im Browser. Die CSP erlaubt bei konfiguriertem Provider lediglich die notwendige Formularweiterleitung nach `accounts.google.com`; Skripte und Bilder bleiben lokal. [Einrichtung und Nachweise](GOOGLE_LOGIN.md).
 
-Die manuelle Google-Bildersuche übermittelt erst beim bewussten externen Link-Klick den sichtbaren Titel und gegebenenfalls die ASIN, keine vollständigen Shop-/Session-URLs. Suchtreffer werden nicht automatisch ausgewählt. Die anschließend eingegebene direkte Bildadresse durchläuft dieselben öffentlichen DNS-/Redirect-/MIME-/Größenprüfungen wie Shop-Bilder und wird nur lokal ausgeliefert.
+Die manuelle Google-Bildersuche wurde entfernt. Eingegebene direkte Bildadressen durchlaufen weiterhin dieselben öffentlichen DNS-/Redirect-/MIME-/Größenprüfungen wie Shop-Bilder und werden nur lokal ausgeliefert.
+
+Öffentliche Listen/Medien tragen weder Reservierungsfelder noch Konto-/Sitzungsdaten im Inhalt. Bilder mit `share` müssen zur zugehörigen Liste gehören; Sitzungs-Vorschauen bleiben geschützt. Rücksprünge nach Anmeldung akzeptieren nur Listen-IDs. Der öffentliche Link kann weitergegeben werden; kein Widerruf einzelner Empfänger ohne Löschen der Liste. Die Ansicht wird nicht im Offline-Cache gespeichert und ist für Suchmaschinen mit `noindex, nofollow` markiert.

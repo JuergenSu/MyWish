@@ -31,9 +31,9 @@ fs.mkdirSync(artifacts, { recursive: true });
     process.env.PHP_BIN || "php",
     [
       "-d",
-      "upload_max_filesize=2M",
+      "upload_max_filesize=8M",
       "-d",
-      "post_max_size=4M",
+      "post_max_size=10M",
       "-S",
       `127.0.0.1:${port}`,
       "-t",
@@ -49,6 +49,8 @@ fs.mkdirSync(artifacts, { recursive: true });
     });
     const page = await auditContext.newPage();
     await page.goto(sourcePage.url());
+    if (name.includes("share-open"))
+      await page.locator(".share-control > summary").first().click();
     for (const width of [320, 360, 768, 1440]) {
       await page.setViewportSize({ width, height: 1000 });
       assert.equal(
@@ -58,6 +60,15 @@ fs.mkdirSync(artifacts, { recursive: true });
         false,
         `Overflow ${name} ${width}`,
       );
+      const clipped = await page
+        .locator(".share-control > summary")
+        .evaluateAll((items) =>
+          items.some((item) => {
+            const r = item.getBoundingClientRect();
+            return r.width < 44 || r.left < 0 || r.right > innerWidth + 1;
+          }),
+        );
+      assert.equal(clipped, false, `Share button clipped: ${name} ${width}`);
       await page.screenshot({
         path: path.join(artifacts, `${name}-${width}.png`),
         fullPage: true,
@@ -170,14 +181,39 @@ fs.mkdirSync(artifacts, { recursive: true });
     await page
       .getByLabel("Preis in EUR (optional)", { exact: true })
       .fill("24,99");
-    const png = Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6C6sAAAAASUVORK5CYII=",
-      "base64",
-    );
-    // Real multipart upload works without JS and without GD.
+    const painter = await browser.newPage();
+    const screenshot = await painter.evaluate(() => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1080;
+      canvas.height = 2400;
+      const c = canvas.getContext("2d");
+      c.fillStyle = "#eeebfc";
+      c.fillRect(0, 0, 1080, 2400);
+      c.fillStyle = "#635bdb";
+      c.fillRect(0, 0, 1080, 340);
+      c.fillRect(0, 2250, 1080, 150);
+      c.fillStyle = "white";
+      c.font = "bold 76px sans-serif";
+      c.fillText("Mein Screenshot", 100, 205);
+      c.fillStyle = "#25223b";
+      c.font = "56px sans-serif";
+      c.fillText("Ein Buch für gemütliche", 80, 660);
+      c.fillText("Winterabende", 80, 750);
+      c.fillStyle = "#b5a7ea";
+      c.fillRect(170, 1000, 740, 950);
+      return canvas.toDataURL("image/png").split(",")[1];
+    });
+    await painter.close();
+    const png = Buffer.alloc(8 * 1024 * 1024);
+    Buffer.from(screenshot, "base64").copy(png);
+    // Real 8 MB phone screenshot upload works without JavaScript.
     await page
       .getByLabel("Eigenes Bild (optional)", { exact: true })
-      .setInputFiles({ name: "tiny.png", mimeType: "image/png", buffer: png });
+      .setInputFiles({
+        name: "Handy-Screenshot.png",
+        mimeType: "image/png",
+        buffer: png,
+      });
     await page
       .getByRole("button", { name: "Wunsch speichern", exact: true })
       .click();
@@ -189,6 +225,19 @@ fs.mkdirSync(artifacts, { recursive: true });
       ),
       true,
     );
+    const media = await owner.request.get(
+      new URL(await page.locator(".wish-image-main").getAttribute("src"), base)
+        .href,
+    );
+    const imageBytes = await media.body();
+    assert.equal(imageBytes.readUInt32BE(16), 540);
+    assert.equal(imageBytes.readUInt32BE(20), 1200);
+    await page.locator(".share-control > summary").click();
+    const shareUrl = await page.locator(".share-url").inputValue();
+    assert.equal(new URL(shareUrl).origin, new URL(base).origin);
+    assert.equal(new URL(shareUrl).pathname, new URL(base).pathname);
+    assert.equal(new URL(shareUrl).searchParams.get("page"), "share");
+    await page.locator(".share-control > summary").click();
     await page
       .getByRole("link", { name: "Wunsch bearbeiten", exact: true })
       .click();
@@ -222,26 +271,88 @@ fs.mkdirSync(artifacts, { recursive: true });
     await imagePage
       .locator("#productUrl")
       .fill("https://www.amazon.de/dp/B0FLM3M1JJ/");
-    const search = imagePage.locator("#google-image-search");
-    const target = new URL(await search.getAttribute("href"));
-    assert.equal(target.origin, "https://www.google.com");
-    assert.equal(target.searchParams.get("q"), "Orzly Lenkräder B0FLM3M1JJ");
-    assert.equal(target.searchParams.get("tbm"), "isch");
-    assert.equal(await search.getAttribute("target"), "_blank");
-    assert.match(await search.getAttribute("rel"), /noreferrer/);
+    assert.equal(await imagePage.locator("#google-image-search").count(), 0);
     assert.deepEqual(
       unexpectedImageRequests,
       [],
-      "No automatic Google requests while typing",
+      "No Google image search requests while typing",
     );
-    await audit(imagePage, "manual-image-search");
+    await audit(imagePage, "image-form");
+    await imagePage.goto(listUrl);
+    await imagePage.locator(".share-control > summary").click();
+    await imagePage.evaluate(() => {
+      Object.defineProperty(navigator, "share", {
+        configurable: true,
+        value: undefined,
+      });
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: {
+          writeText: async (text) => {
+            window.copiedShare = text;
+          },
+        },
+      });
+    });
+    await imagePage.locator("[data-share-button]").click();
+    await imagePage
+      .getByText("Link kopiert. Du kannst ihn jetzt verschicken.")
+      .waitFor();
+    assert.equal(await imagePage.evaluate(() => window.copiedShare), shareUrl);
+    await imagePage.evaluate(() =>
+      Object.defineProperty(navigator, "share", {
+        configurable: true,
+        value: async (data) => {
+          window.nativeShare = data;
+        },
+      }),
+    );
+    await imagePage.locator("[data-share-button]").click();
+    assert.equal(
+      await imagePage.evaluate(() => window.nativeShare.url),
+      shareUrl,
+    );
+    await audit(imagePage, "list-share-open");
+    await imagePage.goto(base);
+    await audit(imagePage, "dashboard-share-open");
+    const noJsGuest = await browser.newContext({ javaScriptEnabled: false });
+    const publicNoJs = await noJsGuest.newPage();
+    await publicNoJs.goto(shareUrl);
+    assert.equal(await publicNoJs.locator(".wish-card").count(), 2);
+    await publicNoJs
+      .locator(".wish-image-main")
+      .evaluate((img) =>
+        img.complete
+          ? null
+          : new Promise((r) => img.addEventListener("load", r, { once: true })),
+      );
+    assert.ok(
+      await publicNoJs
+        .locator(".wish-image-main")
+        .evaluate((img) => img.naturalWidth > 0),
+    );
+    await publicNoJs
+      .getByRole("link", { name: "Für mich reservieren", exact: true })
+      .first()
+      .click();
+    assert.equal(new URL(publicNoJs.url()).searchParams.get("page"), "login");
+    await noJsGuest.close();
     await imageOwner.close();
     await page.goto(base);
     const giver = await browser.newContext({
       viewport: { width: 1440, height: 1000 },
     });
     const gift = await giver.newPage();
-    await gift.goto(base);
+    await gift.goto(shareUrl);
+    await audit(gift, "shared-list");
+    await gift
+      .getByRole("link", { name: "Für mich reservieren", exact: true })
+      .first()
+      .click();
+    assert.equal(
+      new URL(gift.url()).searchParams.get("returnList"),
+      new URL(listUrl).searchParams.get("id"),
+    );
     await audit(gift, "login");
     await gift
       .getByRole("link", { name: "Jetzt registrieren", exact: true })
@@ -254,6 +365,11 @@ fs.mkdirSync(artifacts, { recursive: true });
     await gift
       .getByRole("button", { name: "Konto erstellen", exact: true })
       .click();
+    assert.equal(
+      gift.url(),
+      listUrl,
+      "Registration returns to the shared list",
+    );
     const screens = [
       ["dashboard", base],
       ["list", listUrl],
@@ -322,7 +438,7 @@ fs.mkdirSync(artifacts, { recursive: true });
     await gift.keyboard.press("Enter");
     assert.equal(await gift.evaluate(() => document.activeElement.id), "main");
     console.log(
-      `OK: no-JS setup/CRUD/upload, reservation flow, ${audits} axe/overflow audits, keyboard skip link, local resources`,
+      `OK: no-JS setup/CRUD/8 MB upload, public sharing/native/copy/login return, reservation flow, ${audits} axe/overflow audits, keyboard skip link, local resources`,
     );
   } finally {
     if (browser) await browser.close();

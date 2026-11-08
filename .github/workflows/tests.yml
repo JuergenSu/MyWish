@@ -13,7 +13,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: curl, dom, mbstring
+          extensions: curl, dom, mbstring, gd
           coverage: none
       - run: find . -name '*.php' -not -path './storage/state.php' -print0 | xargs -0 -n1 php -l
       - run: php tests/unit.php
@@ -30,7 +30,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          extensions: curl, dom, mbstring
+          extensions: curl, dom, mbstring, gd
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
