@@ -47,7 +47,7 @@ $flash=$_SESSION['flash'] ?? ''; unset($_SESSION['flash']);
 ?>
 <!doctype html>
 <html lang="de">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#635bdb"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="<?= e($siteName) ?>"><title><?= e($siteName) ?> · Wünsche verbinden</title><link rel="icon" href="<?= e($base) ?>/assets/favicon.svg" type="image/svg+xml"><link rel="manifest" href="<?= e($base) ?>/manifest.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="<?= e($base) ?>/assets/icons/apple-touch-icon.png"><link rel="stylesheet" href="<?= e($base) ?>/assets/css/app.css"><script src="<?= e($base) ?>/assets/js/app.js" defer></script><script src="<?= e($base) ?>/assets/js/install.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#635bdb"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="<?= e($siteName) ?>"><title><?= e($siteName) ?> · Wünsche verbinden</title><link rel="icon" href="<?= e($base) ?>/assets/favicon.svg" type="image/svg+xml"><link rel="manifest" href="<?= e($base) ?>/manifest.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="<?= e($base) ?>/assets/icons/apple-touch-icon.png"><link rel="stylesheet" href="<?= e($base) ?>/assets/css/app.css?v=full-wish-images"><script src="<?= e($base) ?>/assets/js/app.js" defer></script><script src="<?= e($base) ?>/assets/js/install.js" defer></script></head>
 <body>
 <a class="skip" href="#main">Zum Inhalt</a>
 <?php if ($settings): ?>
