@@ -11,6 +11,15 @@ Eine kleine, selbst gehostete Wunschwelt für Freunde und Familie. PHP 8.2+, HTM
 - Listen mit Anlass, Datum, Beschreibung und Cover; Wünsche mit optionalem Shoplink, Bild, EUR-Preis und Menge (1–99).
 - Optionaler Produktimport mit Vorschau (OpenGraph, JSON-LD, HTML-Titel). Eingaben prüfen und explizit speichern; ein manueller Wunsch funktioniert immer.
 - Meine Reservierungen, Suche über Listen/Anzeigenamen, mobile Oberfläche und Formulare ohne JavaScript.
+- Installationsbanner auf dem Handy: Android-Installationsdialog oder iPhone-Anleitung für den Home-Bildschirm; App-Manifest und lokale Icons, auch im Unterordner.
+
+## Auf dem Handy installieren
+
+Nach der Einrichtung erscheint oben in der mobilen Browseransicht ein Hinweis. Unter Android öffnet **Hinzufügen** den Installationsdialog, sobald der Browser die App als installierbar meldet. Andernfalls zeigt **So geht’s** den Weg über das Browsermenü. Auf dem iPhone: **Teilen → Zum Home-Bildschirm → Hinzufügen** (bei fehlendem Menüeintrag in Safari öffnen).
+
+Für die Installation ist HTTPS nötig; localhost funktioniert für Entwicklung ebenfalls. Im installierten App-Modus bleibt das Banner verborgen. Schließen blendet es auf diesem Browser für sieben Tage aus; der optionale lokale Speicher enthält dafür nur einen Zeitstempel pro Installationspfad. Browser und Betriebssystem bestimmen, ob und wie eine Installation angeboten wird, und benötigen die Bestätigung des Nutzers.
+
+`manifest.webmanifest`, `sw.js` und `assets/icons/` mitkopieren. Der Service Worker verwendet ausschließlich das Netzwerk und legt **keine Offline-Kopien** privater Daten an. Die App benötigt eine Internetverbindung. Login, Berechtigungen und Sicherheitsheader gelten unverändert. Ohne JavaScript oder bei normalen unverschlüsselten HTTP-Seiten bleibt der Installationshinweis ausgeblendet.
 
 ## Installation durch Kopieren
 
@@ -91,6 +100,7 @@ Optionale Browserprüfung mit Node, Playwright, Chromium und axe-core:
 npm install --no-save playwright axe-core
 npx playwright install chromium
 node tests/browser.cjs
+node tests/install-banner.cjs
 ```
 
 Browsertests erstellen eine isolierte Kopie und prüfen Einrichtung, Listen-/Wunschformulare, Reservieren, no-JS, Tastaturzugriff, axe und Overflow bei 320/360/768/1440 px. Screenshots landen in `tests/.artifacts/`. Siehe [Release-Nachweise](docs/RELEASE.md), [Sicherheitsmodell](docs/SECURITY.md), [API](docs/API.md).

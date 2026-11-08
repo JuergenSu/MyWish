@@ -44,9 +44,14 @@ $flash=$_SESSION['flash'] ?? ''; unset($_SESSION['flash']);
 ?>
 <!doctype html>
 <html lang="de">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#635bdb"><title><?= e($siteName) ?> · Wünsche verbinden</title><link rel="icon" href="<?= e($base) ?>/assets/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="<?= e($base) ?>/assets/css/app.css"><script src="<?= e($base) ?>/assets/js/app.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#635bdb"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="<?= e($siteName) ?>"><title><?= e($siteName) ?> · Wünsche verbinden</title><link rel="icon" href="<?= e($base) ?>/assets/favicon.svg" type="image/svg+xml"><link rel="manifest" href="<?= e($base) ?>/manifest.webmanifest"><link rel="apple-touch-icon" href="<?= e($base) ?>/assets/icons/icon-192.png"><link rel="stylesheet" href="<?= e($base) ?>/assets/css/app.css"><script src="<?= e($base) ?>/assets/js/app.js" defer></script><script src="<?= e($base) ?>/assets/js/install.js" defer></script></head>
 <body>
 <a class="skip" href="#main">Zum Inhalt</a>
+<?php if ($settings): ?>
+<aside id="install-banner" class="install-banner" aria-labelledby="install-title" data-base="<?= e($base) ?>/" hidden>
+<div class="shell install-inner"><img class="install-icon" src="<?= e($base) ?>/assets/icons/icon-192.png" alt="" width="44" height="44"><div class="install-copy"><h2 id="install-title"><?= e($siteName) ?> auf deinem Startbildschirm</h2><p>Deine Wünsche, nur einen Tipp entfernt.</p><p id="install-help" class="install-help" role="status" hidden></p></div><button id="install-button" type="button" class="button primary" aria-controls="install-help" aria-expanded="false">So geht’s</button><button id="install-dismiss" type="button" class="install-dismiss" aria-label="Installationshinweis schließen">×</button></div>
+</aside>
+<?php endif ?>
 <header class="header"><div class="shell header-inner"><a class="brand" href="<?= e(url()) ?>"><span class="brand-icon"><?= icon('gift') ?></span><?= e($siteName) ?><span class="brand-dot">.</span></a>
 <?php if ($user): ?><nav aria-label="Hauptnavigation"><a <?= in_array($page,['home','list','editList','wish'],true) ? 'aria-current="page"' : '' ?> href="<?= e(url()) ?>"><?= icon('grid') ?><span>Alle Listen</span></a><a <?= $page==='reservations' ? 'aria-current="page"' : '' ?> href="<?= e(url('page=reservations')) ?>"><?= icon('heart') ?><span>Meine Reservierungen</span></a></nav><a class="profile" aria-label="Mein Konto: <?= e($user['name']) ?>" href="<?= e(url('page=account')) ?>"><?= e(initials($user['name'])) ?></a>
 <?php else: ?><span class="header-note">Kleine Wünsche. Große Freude.</span><?php endif ?></div></header>

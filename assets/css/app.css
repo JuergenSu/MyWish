@@ -1506,3 +1506,76 @@ legend {
     scroll-behavior: auto !important;
   }
 }
+
+/* Startbildschirm-Banner: statisch im Seitenfluss, ohne Inhalte zu verdecken. */
+.install-banner {
+  background: #eeebfb;
+  border-bottom: 1px solid #ded8f4;
+}
+.install-inner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-block: 16px;
+}
+.install-icon {
+  flex: 0 0 44px;
+  border-radius: 12px;
+}
+.install-copy {
+  flex: 1;
+  min-width: 0;
+}
+.install-copy h2 {
+  font-size: 0.94rem;
+  letter-spacing: normal;
+  overflow-wrap: anywhere;
+}
+.install-copy p {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: #57516d;
+}
+.install-copy .install-help {
+  margin-top: 10px;
+  max-width: 620px;
+}
+.install-dismiss {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  color: #514966;
+  background: transparent;
+  font-size: 1.6rem;
+}
+.install-dismiss:hover {
+  background: #e1dcf3;
+}
+@media (max-width: 540px) {
+  .install-inner {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    gap: 10px 12px;
+    padding-block: 14px;
+  }
+  .install-copy {
+    grid-column: 2;
+  }
+  #install-button {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .install-dismiss {
+    grid-column: 3;
+    grid-row: 1;
+    align-self: start;
+  }
+  .install-icon {
+    align-self: start;
+  }
+}

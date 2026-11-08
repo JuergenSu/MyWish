@@ -11,7 +11,7 @@ use MyWish\App;
 ini_set('display_errors', '0');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: no-referrer');
-header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
 header('Cache-Control: no-store');
 header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
 function bootFailure(string $message): never
