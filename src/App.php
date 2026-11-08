@@ -4,7 +4,7 @@ namespace MyWish;
 
 final class App
 {
-    public const PASSWORD_HINT = 'Mindestens 8 Zeichen und mindestens ein Sonderzeichen (z. B. !, ? oder #).';
+    public const PASSWORD_HINT = 'Mindestens 8 Zeichen.';
 
     public function __construct(public Store $store, private ?string $registrationOverride = null)
     {
@@ -31,8 +31,7 @@ final class App
     {
         $pass = $in[$key] ?? null;
         if (!is_string($pass) || strlen($pass) > 72 || str_contains($pass, "\0")
-            || !preg_match('//u', $pass) || preg_match_all('/./us', $pass) < 8
-            || !preg_match('/[\p{P}\p{S}]/u', $pass)) {
+            || !preg_match('//u', $pass) || preg_match_all('/./us', $pass) < 8) {
             throw new Problem(422, self::PASSWORD_HINT.' Maximal 72 Bytes.');
         }
         return $pass;

@@ -116,14 +116,21 @@ fs.mkdirSync(artifacts, { recursive: true });
       .getByLabel("Benutzername oder E-Mail", { exact: true })
       .fill("antonia");
     const passwordInput = page.getByLabel("Passwort", { exact: true });
-    for (const invalid of ["abcdef!", "abcdefgh", "äöüßéa!"]) {
+    for (const invalid of ["abcdef!", "abcdefg", "äöüßéa!"]) {
       await passwordInput.fill(invalid);
       assert.equal(
         await passwordInput.evaluate((input) => input.validity.patternMismatch),
         true,
       );
     }
-    await passwordInput.fill("Winter!8");
+    for (const valid of ["abcdefgh", "12345678", "äöüßéabc", "abcdefg!"]) {
+      await passwordInput.fill(valid);
+      assert.equal(
+        await passwordInput.evaluate((input) => input.checkValidity()),
+        true,
+      );
+    }
+    await passwordInput.fill("abcdefgh");
     assert.equal(
       await passwordInput.evaluate((input) => input.checkValidity()),
       true,
@@ -211,7 +218,7 @@ fs.mkdirSync(artifacts, { recursive: true });
     await gift
       .getByLabel("Benutzername oder E-Mail", { exact: true })
       .fill("juergen");
-    await gift.getByLabel("Passwort", { exact: true }).fill("Schenkt!");
+    await gift.getByLabel("Passwort", { exact: true }).fill("12345678");
     await gift
       .getByRole("button", { name: "Konto erstellen", exact: true })
       .click();
