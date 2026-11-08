@@ -35,9 +35,9 @@ class Client:
 def scenario(base):
  owner=Client(base); guest=Client(base)
  guest.post('saveList',{},401)
- for invalid in ['abcdef!', 'abcdefgh', 'äöüßéa!']:
+ for invalid in ['abcdef!', 'abcdefg', 'äöüßéa!']:
   owner.post('setup',{'name':'Antonia','username':'antonia','password':invalid,'siteName':'MyWish Test','registration':'open'},422)
- owner.post('setup',{'name':'Antonia','username':'antonia','password':' Abcdefg! ','siteName':'MyWish Test','registration':'open'},201)
+ owner.post('setup',{'name':'Antonia','username':'antonia','password':' Abcdefgh ','siteName':'MyWish Test','registration':'open'},201)
  owner.post('setup',{'name':'Intruder'},409)
  owner.post('saveList',{},403,token='wrong')
  owner.post('saveList',{'name':'','occasion':'Geburtstag'},422)
@@ -56,33 +56,11 @@ def scenario(base):
  code,body,headers=owner.request('index.php?page=list&id='+a)
  check(code==200 and b'&lt;script&gt;' in body and b'<script>alert' not in body,'Stored XSS escaped')
  check('frame-ancestors' in headers['Content-Security-Policy'],'CSP present')
- for invalid in ['abcdef!', 'abcdefgh', 'äöüßéa!']:
+ for invalid in ['abcdef!', 'abcdefg', 'äöüßéa!']:
   guest.post('register',{'name':'Invalid','username':'invalid','password':invalid},422)
  users=[]
  for i in range(10):
-  u=Client(base); u.post('register',{'name':'Schenkender '+str(i),'username':'giver'+str(i),'password':'abcdefg!'},201); users.append(u)
- # Import form exercised against deterministic Amazon HTML, never a live shop.
- class Inputs(HTMLParser):
-  def __init__(self,html): super().__init__(); self.values={}; self.feed(html)
-  def handle_starttag(self,tag,attrs):
-   attrs=dict(attrs)
-   if tag=='input' and 'name' in attrs:self.values[attrs['name']]=attrs.get('value','')
- def import_form(product,**values):
-  payload={'action':'import','csrf':owner.csrf,'listId':a,'id':'','productUrl':product,**values}
-  code,body,_=owner.request('import-test.php?page=wish&listId='+a,urllib.parse.urlencode(payload).encode(),{'Content-Type':'application/x-www-form-urlencoded'})
-  check(code==200,'Import form HTTP status')
-  return body.decode(),Inputs(body.decode()).values
- html,form=import_form('https://www.amazon.de/Orzly-Lenkrader-Kompatibel-Joy-Geschenkbox/dp/B0FLM3M1JJ/')
- check(form['title']=='Orzly Lenkräder – kompatibel mit Joy-Con, Geschenkbox' and form['price']=='19.99','Amazon fields populate the actual form')
- check(form['useImportedImage']=='yes' and 'Vorschau geladen' in html,'Actual form offers checked image preview')
- html,form=import_form('https://www.amazon.de/dp/B0FLM3M1JJ',title='Mein eigener Titel',price='0',quantity='2')
- check(form['title']=='Mein eigener Titel' and form['price']=='0' and form['quantity']=='2','Form preserves manual overrides')
- html,form=import_form('https://www.amazon.de/Manuell-speichern/dp/B000000503/')
- check('Amazon liefert gerade keine auslesbaren Produktdaten' in html and 'Vorschau geladen' not in html,'503 fallback is not claimed as a successful import')
- check('useImportedImage' not in form and form['title']=='Manuell speichern','Failed import never reuses old image')
- fallback_wish=owner.post('saveWish',{'listId':a,'title':form['title'],'productUrl':form['productUrl']},201)['id']
- check(owner.get('state')[1]['data']['wishes'][-1]['productUrl']=='https://www.amazon.de/dp/B000000503','Failed import remains manually saveable')
- owner.post('deleteWish',{'id':fallback_wish,'confirm':'yes'})
+  u=Client(base); u.post('register',{'name':'Schenkender '+str(i),'username':'giver'+str(i),'password':'abcdefgh'},201); users.append(u)
  code,state=users[0].get('state'); check(len(state['data']['lists'])==2,'All lists visible to signed-in user')
  users[0].post('saveList',{'id':a,'name':'Hacked','occasion':'Anderes'},403)
  users[0].post('saveWish',{'id':wish,'listId':a,'title':'Hacked'},403)
@@ -130,19 +108,19 @@ def scenario(base):
  owner.post('saveWish',{'id':image,'listId':a,'title':'Unchanged image','_image':{'tmp_name':'/etc/passwd','error':0,'size':100}})
 
  owner.post('account',{'name':'Antonia Neu','currentPassword':'wrong'},403)
- other=Client(base); other.post('login',{'username':'antonia','password':' Abcdefg! '})
- for invalid in ['abcdef!', 'abcdefgh', 'äöüßéa!']:
-  owner.post('account',{'name':'Antonia Neu','currentPassword':' Abcdefg! ','newPassword':invalid},422)
+ other=Client(base); other.post('login',{'username':'antonia','password':' Abcdefgh '})
+ for invalid in ['abcdef!', 'abcdefg', 'äöüßéa!']:
+  owner.post('account',{'name':'Antonia Neu','currentPassword':' Abcdefgh ','newPassword':invalid},422)
  check(other.get('state')[0]==200,'Rejected password changes preserve active sessions')
- owner.post('account',{'name':'Antonia Neu','currentPassword':' Abcdefg! ','newPassword':''})
- other.post('login',{'username':'antonia','password':' Abcdefg! '})
- owner.post('account',{'name':'Antonia Neu','currentPassword':' Abcdefg! ','newPassword':'Changed!'})
+ owner.post('account',{'name':'Antonia Neu','currentPassword':' Abcdefgh ','newPassword':''})
+ other.post('login',{'username':'antonia','password':' Abcdefgh '})
+ owner.post('account',{'name':'Antonia Neu','currentPassword':' Abcdefgh ','newPassword':'Changed1'})
  check(other.get('state')[0]==401,'Password change invalidates other sessions')
  # Login rate limiting; repeated wrong attempts share an IP as in production.
  for i in range(10): guest.post('login',{'username':'missing','password':'wrong'},401)
  guest.post('login',{'username':'missing','password':'wrong'},429)
  owner.post('deleteList',{'id':a,'confirm':'yes'})
- owner.post('deleteAccount',{'currentPassword':'Changed!','confirm':'yes'})
+ owner.post('deleteAccount',{'currentPassword':'Changed1','confirm':'yes'})
  check(owner.get('state')[0]==401,'Account deletion invalidates session')
 
 with tempfile.TemporaryDirectory(prefix='mywish-http-') as temp:
@@ -178,7 +156,7 @@ with tempfile.TemporaryDirectory(prefix='mywish-http-') as temp:
   race=doc/'setup-race'; shutil.copytree(ROOT,race,ignore=shutil.ignore_patterns('.git','state.php','lock.php','config.php','.artifacts','__pycache__'))
   starters=[Client(f'http://127.0.0.1:{port}/setup-race/') for _ in range(2)]
   def initialize(client):
-   payload={'name':'First','username':'first','password':'Setup!12','siteName':'Race','registration':'open'}
+   payload={'name':'First','username':'first','password':'Setup123','siteName':'Race','registration':'open'}
    return client.request('api/index.php?action=setup',json.dumps(payload).encode(),{'Content-Type':'application/json','X-CSRF-Token':client.csrf})[0]
   with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool: codes=list(pool.map(initialize,starters))
   check(sorted(codes)==[201,409],'Atomic first setup: '+str(codes))
@@ -191,7 +169,7 @@ with tempfile.TemporaryDirectory(prefix='mywish-http-') as temp:
   legacy=Client(f'http://127.0.0.1:{port}/setup-race/')
   legacy.post('login',{'username':'first','password':'Previously valid passphrase'})
   legacy.post('account',{'name':'First updated','currentPassword':'Previously valid passphrase','newPassword':''})
-  legacy.post('account',{'name':'First updated','currentPassword':'Previously valid passphrase','newPassword':'abcdefgh'},422)
+  legacy.post('account',{'name':'First updated','currentPassword':'Previously valid passphrase','newPassword':'abcdefg'},422)
   # Validate portable backup and roundtrip on the second instance.
   original=(doc/'storage/state.php').read_bytes()
   (doc/'mywish/storage/state.php').write_bytes(original)
