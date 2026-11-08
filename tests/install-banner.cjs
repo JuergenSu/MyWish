@@ -108,6 +108,20 @@ const iphone =
         assert.equal(bytes.readUInt32BE(16), parseInt(icon.sizes));
         assert.equal(bytes.readUInt32BE(20), parseInt(icon.sizes));
       }
+      // Safari verwendet das Apple-Touch-Icon statt der Android-Manifest-Icons.
+      const appleIcon = page.locator('link[rel="apple-touch-icon"]');
+      assert.equal(await appleIcon.getAttribute("sizes"), "180x180");
+      const appleUrl = new URL(
+        await appleIcon.getAttribute("href"),
+        page.url(),
+      );
+      assert.equal(appleUrl.href, `${base}assets/icons/apple-touch-icon.png`);
+      const appleResponse = await context.request.get(appleUrl.href);
+      assert.equal(appleResponse.status(), 200);
+      assert.match(appleResponse.headers()["content-type"], /image\/png/);
+      const appleBytes = await appleResponse.body();
+      assert.equal(appleBytes.readUInt32BE(16), 180);
+      assert.equal(appleBytes.readUInt32BE(20), 180);
       // Fallback bleibt bei fehlendem beforeinstallprompt nutzbar.
       await page
         .getByRole("button", { name: "So geht’s", exact: true })
