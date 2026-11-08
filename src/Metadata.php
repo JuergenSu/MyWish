@@ -81,7 +81,7 @@ final class Metadata
                 CURLOPT_CONNECTTIMEOUT_MS=>min(3000,$remaining), CURLOPT_TIMEOUT_MS=>$remaining,
                 CURLOPT_SSL_VERIFYPEER=>true, CURLOPT_SSL_VERIFYHOST=>2,
                 CURLOPT_RESOLVE=>[$host.':'.$port.':'.$ips[0]], CURLOPT_ENCODING=>'',
-                CURLOPT_USERAGENT=>'MyWish/1.0 metadata preview',
+                CURLOPT_USERAGENT=>'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
                 CURLOPT_HTTPHEADER=>['Accept: text/html,application/xhtml+xml,image/webp,image/png,image/jpeg;q=0.9,*/*;q=0.5','Accept-Language: de-DE,de;q=0.9,en;q=0.5'],
                 CURLOPT_HEADERFUNCTION=>function($c,$line) use (&$headers) {
                     if (str_starts_with($line,'HTTP/')) { $headers=[]; }
