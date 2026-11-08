@@ -25,7 +25,7 @@ function field(string $name,string $label,mixed $value='',string $type='text',bo
 {
     $extra=$type==='number' ? ' min="1" max="99" step="1"' : ' maxlength="'.$max.'"';
     if ($type==='password' && $autocomplete==='new-password') {
-        $extra.=' minlength="8" pattern="(?=.*[\p{P}\p{S}]).{8,}" title="'.e(MyWish\App::PASSWORD_HINT).'"';
+        $extra.=' minlength="8" pattern=".{8,}" title="'.e(MyWish\App::PASSWORD_HINT).'"';
     }
     return '<label>'.e($label).'<input name="'.e($name).'" type="'.e($type).'" value="'.e(is_scalar($value) ? $value : '').'"'.($required ? ' required' : '').$extra.($autocomplete ? ' autocomplete="'.e($autocomplete).'"' : '').($name==='price' ? ' inputmode="decimal"' : '').'></label>';
 }

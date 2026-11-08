@@ -34,9 +34,9 @@ class Client:
 def scenario(base):
  owner=Client(base); guest=Client(base)
  guest.post('saveList',{},401)
- for invalid in ['abcdef!', 'abcdefgh', 'äöüßéa!']:
+ for invalid in ['abcdef!', 'abcdefg', 'äöüßéa!']:
   owner.post('setup',{'name':'Antonia','username':'antonia','password':invalid,'siteName':'MyWish Test','registration':'open'},422)
- owner.post('setup',{'name':'Antonia','username':'antonia','password':' Abcdefg! ','siteName':'MyWish Test','registration':'open'},201)
+ owner.post('setup',{'name':'Antonia','username':'antonia','password':' Abcdefgh ','siteName':'MyWish Test','registration':'open'},201)
  owner.post('setup',{'name':'Intruder'},409)
  owner.post('saveList',{},403,token='wrong')
  owner.post('saveList',{'name':'','occasion':'Geburtstag'},422)
@@ -55,11 +55,11 @@ def scenario(base):
  code,body,headers=owner.request('index.php?page=list&id='+a)
  check(code==200 and b'&lt;script&gt;' in body and b'<script>alert' not in body,'Stored XSS escaped')
  check('frame-ancestors' in headers['Content-Security-Policy'],'CSP present')
- for invalid in ['abcdef!', 'abcdefgh', 'äöüßéa!']:
+ for invalid in ['abcdef!', 'abcdefg', 'äöüßéa!']:
   guest.post('register',{'name':'Invalid','username':'invalid','password':invalid},422)
  users=[]
  for i in range(10):
-  u=Client(base); u.post('register',{'name':'Schenkender '+str(i),'username':'giver'+str(i),'password':'abcdefg!'},201); users.append(u)
+  u=Client(base); u.post('register',{'name':'Schenkender '+str(i),'username':'giver'+str(i),'password':'abcdefgh'},201); users.append(u)
  code,state=users[0].get('state'); check(len(state['data']['lists'])==2,'All lists visible to signed-in user')
  users[0].post('saveList',{'id':a,'name':'Hacked','occasion':'Anderes'},403)
  users[0].post('saveWish',{'id':wish,'listId':a,'title':'Hacked'},403)
@@ -107,19 +107,19 @@ def scenario(base):
  owner.post('saveWish',{'id':image,'listId':a,'title':'Unchanged image','_image':{'tmp_name':'/etc/passwd','error':0,'size':100}})
 
  owner.post('account',{'name':'Antonia Neu','currentPassword':'wrong'},403)
- other=Client(base); other.post('login',{'username':'antonia','password':' Abcdefg! '})
- for invalid in ['abcdef!', 'abcdefgh', 'äöüßéa!']:
-  owner.post('account',{'name':'Antonia Neu','currentPassword':' Abcdefg! ','newPassword':invalid},422)
+ other=Client(base); other.post('login',{'username':'antonia','password':' Abcdefgh '})
+ for invalid in ['abcdef!', 'abcdefg', 'äöüßéa!']:
+  owner.post('account',{'name':'Antonia Neu','currentPassword':' Abcdefgh ','newPassword':invalid},422)
  check(other.get('state')[0]==200,'Rejected password changes preserve active sessions')
- owner.post('account',{'name':'Antonia Neu','currentPassword':' Abcdefg! ','newPassword':''})
- other.post('login',{'username':'antonia','password':' Abcdefg! '})
- owner.post('account',{'name':'Antonia Neu','currentPassword':' Abcdefg! ','newPassword':'Changed!'})
+ owner.post('account',{'name':'Antonia Neu','currentPassword':' Abcdefgh ','newPassword':''})
+ other.post('login',{'username':'antonia','password':' Abcdefgh '})
+ owner.post('account',{'name':'Antonia Neu','currentPassword':' Abcdefgh ','newPassword':'Changed1'})
  check(other.get('state')[0]==401,'Password change invalidates other sessions')
  # Login rate limiting; repeated wrong attempts share an IP as in production.
  for i in range(10): guest.post('login',{'username':'missing','password':'wrong'},401)
  guest.post('login',{'username':'missing','password':'wrong'},429)
  owner.post('deleteList',{'id':a,'confirm':'yes'})
- owner.post('deleteAccount',{'currentPassword':'Changed!','confirm':'yes'})
+ owner.post('deleteAccount',{'currentPassword':'Changed1','confirm':'yes'})
  check(owner.get('state')[0]==401,'Account deletion invalidates session')
 
 with tempfile.TemporaryDirectory(prefix='mywish-http-') as temp:
@@ -153,7 +153,7 @@ with tempfile.TemporaryDirectory(prefix='mywish-http-') as temp:
   race=doc/'setup-race'; shutil.copytree(ROOT,race,ignore=shutil.ignore_patterns('.git','state.php','lock.php','config.php','.artifacts','__pycache__'))
   starters=[Client(f'http://127.0.0.1:{port}/setup-race/') for _ in range(2)]
   def initialize(client):
-   payload={'name':'First','username':'first','password':'Setup!12','siteName':'Race','registration':'open'}
+   payload={'name':'First','username':'first','password':'Setup123','siteName':'Race','registration':'open'}
    return client.request('api/index.php?action=setup',json.dumps(payload).encode(),{'Content-Type':'application/json','X-CSRF-Token':client.csrf})[0]
   with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool: codes=list(pool.map(initialize,starters))
   check(sorted(codes)==[201,409],'Atomic first setup: '+str(codes))
@@ -166,7 +166,7 @@ with tempfile.TemporaryDirectory(prefix='mywish-http-') as temp:
   legacy=Client(f'http://127.0.0.1:{port}/setup-race/')
   legacy.post('login',{'username':'first','password':'Previously valid passphrase'})
   legacy.post('account',{'name':'First updated','currentPassword':'Previously valid passphrase','newPassword':''})
-  legacy.post('account',{'name':'First updated','currentPassword':'Previously valid passphrase','newPassword':'abcdefgh'},422)
+  legacy.post('account',{'name':'First updated','currentPassword':'Previously valid passphrase','newPassword':'abcdefg'},422)
   # Validate portable backup and roundtrip on the second instance.
   original=(doc/'storage/state.php').read_bytes()
   (doc/'mywish/storage/state.php').write_bytes(original)
