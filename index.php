@@ -62,7 +62,7 @@ $flash=$_SESSION['flash'] ?? ''; unset($_SESSION['flash']);
 ?>
 <!doctype html>
 <html lang="de">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#635bdb"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="<?= e($siteName) ?>"><title><?= e($siteName) ?> · Wünsche verbinden</title><link rel="icon" href="<?= e($base) ?>/assets/favicon.svg" type="image/svg+xml"><link rel="manifest" href="<?= e($base) ?>/manifest.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="<?= e($base) ?>/assets/icons/apple-touch-icon.png"><link rel="stylesheet" href="<?= e($base) ?>/assets/css/app.css?v=sharing-uploads"><script src="<?= e($base) ?>/assets/js/app.js?v=sharing-uploads" defer></script><script src="<?= e($base) ?>/assets/js/install.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#635bdb"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="<?= e($siteName) ?>"><title><?= e($siteName) ?> · Wünsche verbinden</title><link rel="icon" href="<?= e($base) ?>/assets/favicon.svg" type="image/svg+xml"><link rel="manifest" href="<?= e($base) ?>/manifest.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="<?= e($base) ?>/assets/icons/apple-touch-icon.png"><link rel="stylesheet" href="<?= e($base) ?>/assets/css/app.css?v=google-first-login"><script src="<?= e($base) ?>/assets/js/app.js?v=sharing-uploads" defer></script><script src="<?= e($base) ?>/assets/js/install.js" defer></script></head>
 <body>
 <a class="skip" href="#main">Zum Inhalt</a>
 <?php if ($settings): ?>
@@ -78,9 +78,16 @@ $flash=$_SESSION['flash'] ?? ''; unset($_SESSION['flash']);
 <?php if ($error): ?><div class="notice error" role="alert"><?= icon('info') ?><span><?= e($error) ?></span></div><?php endif ?>
 <?php try {
 if (in_array($page,['setup','login','register'],true)):
-    $setup=$page==='setup'; $register=$page==='register'; ?>
+    $setup=$page==='setup'; $register=$page==='register';
+    $googleTabs=!$setup && $google->available();
+    $passwordAuth=!$googleTabs || $register || ($_GET['method'] ?? '')==='password' || in_array($form['action'] ?? '',['login','register'],true);
+    $authReturn=$returnList!=='' ? '&returnList='.$returnList : ''; ?>
 <section class="auth-layout"><div class="auth-story"><span class="eyebrow">SCHENKEN BEGINNT MIT EINEM WUNSCH</span><h1>Mehr Vorfreude.<br>Weniger Rätselraten.</h1><p>Sammle deine Herzenswünsche und mach den Menschen, die dich beschenken möchten, eine kleine Freude.</p><div class="gift-scene" aria-hidden="true"><span class="spark s1">✦</span><span class="spark s2">✧</span><div class="present p-back"></div><div class="present p-front"><span>♡</span></div><span class="spark s3">✦</span></div><div class="story-note"><?= icon('heart') ?> Die schönsten Geschenke bleiben eine Überraschung.</div></div>
 <div class="panel auth-panel"><span class="mini-icon"><?= icon($setup ? 'gift' : 'heart') ?></span><h2><?= $setup ? 'Dein MyWish beginnt hier' : ($register ? 'Platz für deine Wünsche' : 'Schön, dass du da bist') ?></h2><p class="muted"><?= $setup ? 'Einmal einrichten, gemeinsam Vorfreude teilen.' : ($register ? 'Erstelle dein Konto – ganz ohne E-Mail-Versand.' : 'Melde dich an und entdecke, was Freude macht.') ?></p>
+<?php if ($googleTabs): ?><nav class="auth-tabs" aria-label="Anmeldemethode"><a href="<?= e(url('page=login&method=google'.$authReturn)) ?>" <?= !$passwordAuth ? 'aria-current="page"' : '' ?>>Mit Google</a><a href="<?= e(url('page=login&method=password'.$authReturn)) ?>" <?= $passwordAuth ? 'aria-current="page"' : '' ?>>Mit Passwort</a></nav><?php endif ?>
+<?php if (!$passwordAuth): ?>
+<?= googleButton('login','Mit Google anmelden') ?><p class="field-help google-help">Schon ein Konto mit Passwort? Melde dich im Tab „Mit Passwort“ an und verknüpfe Google unter „Mein Konto“.</p>
+<?php else: ?>
 <form method="post" class="stack">
 <?= hidden('action',$setup ? 'setup' : ($register ? 'register' : 'login')) ?><?= csrf() ?><?= hidden('returnList',$returnList) ?>
 <?php if ($setup): ?><?= field('siteName','Name deiner Wunschwelt',$form['siteName'] ?? 'MyWish','text',true,80) ?><?php endif ?>
@@ -90,8 +97,8 @@ if (in_array($page,['setup','login','register'],true)):
 <?php if ($setup || $register): ?><p class="field-help"><?= e(App::PASSWORD_HINT) ?></p><?php endif ?>
 <?php if ($setup): ?><label>Registrierung<select name="registration"><option value="open">Offen – neue Nutzer können sich registrieren</option><option value="closed" <?= ($form['registration'] ?? '')==='closed' ? 'selected' : '' ?>>Geschlossen – nur dieses Konto</option></select></label><p class="field-help">Alle angemeldeten Nutzer sehen alle Listen. Es gibt keine privaten Listen und keine Adminrolle. Registrierung später nur durch den Betreiber per Konfigurationsdatei ändern.</p><?php endif ?>
 <button class="button primary full" type="submit"><?= $setup ? 'MyWish einrichten' : ($register ? 'Konto erstellen' : 'Anmelden') ?><?= icon('arrow') ?></button></form>
-<?php if (!$setup && $google->available()): ?><div class="auth-divider"><span>oder</span></div><?= googleButton('login','Mit Google anmelden') ?><p class="field-help google-help">Schon ein MyWish-Konto? Mit deinem bisherigen Passwort anmelden und Google unter „Mein Konto“ verknüpfen.</p><?php endif ?>
-<?php if (!$setup): ?><p class="auth-switch"><?= $register ? 'Schon dabei?' : 'Noch kein Konto?' ?> <?php if ($register || ($settings['registration'] ?? '')==='open'): ?><a href="<?= e(url('page='.($register ? 'login' : 'register').($returnList!=='' ? '&returnList='.$returnList : ''))) ?>"><?= $register ? 'Jetzt anmelden' : 'Jetzt registrieren' ?></a><?php else: ?>Registrierung geschlossen.<?php endif ?></p><?php else: ?><p class="field-help">PHP und Storage geprüft · Keine Datenbank erforderlich</p><?php endif ?></div></section>
+<?php if (!$setup): ?><p class="auth-switch"><?= $register ? 'Schon dabei?' : 'Noch kein Konto?' ?> <?php if ($register || ($settings['registration'] ?? '')==='open'): ?><a href="<?= e(url('page='.($register ? 'login&method=password' : 'register').($returnList!=='' ? '&returnList='.$returnList : ''))) ?>"><?= $register ? 'Jetzt anmelden' : 'Jetzt registrieren' ?></a><?php else: ?>Registrierung geschlossen.<?php endif ?></p><?php else: ?><p class="field-help">PHP und Storage geprüft · Keine Datenbank erforderlich</p><?php endif ?>
+<?php endif ?></div></section>
 <?php elseif ($page==='home' && $state):
     $q=is_string($_GET['q'] ?? null) ? trim($_GET['q']) : '';
     $lists=array_filter($state['lists'],fn($l)=>$q==='' || stripos($l['name'].' '.$l['ownerName'],$q)!==false);

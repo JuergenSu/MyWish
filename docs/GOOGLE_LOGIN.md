@@ -65,3 +65,8 @@ node tests/google-browser.cjs
 Der appseitige Start nutzt native Formulare und funktioniert ohne JavaScript; Googles eigene Oberfläche kann JavaScript benötigen.
 
 Die Tests verwenden dynamisch erzeugte Testschlüssel und einen lokalen Google-Transport-Doppelgänger. Sie prüfen Token-Manipulationen, CSRF/State/Nonce/PKCE, Login/Verknüpfung, Reauthentifizierung, Kontoverwaltung und Schema-Migration. Ein erfolgreicher Test mit dem echten Google-Projekt ist erst nach Konfiguration der tatsächlichen Client-ID, des Secrets und der Domain möglich; er ist vor Produktivfreigabe erforderlich.
+
+
+## Anmeldeansicht
+
+Bei eingerichtetem Google-Anbieter ist **Mit Google** der erste und standardmäßig aktive Tab. Der zweite Tab **Mit Passwort** enthält Benutzername, Passwort und den Registrierungslink. Die Registrierung bleibt in diesem Tab; Fehler bei einer Passwort-Anmeldung behalten ihn ebenfalls bei. Beide Tabs funktionieren als normale Navigation auch ohne JavaScript und erhalten den Rücksprung zur geteilten Liste. Ohne Google-Konfiguration wird direkt das Passwortformular angezeigt.

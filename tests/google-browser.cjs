@@ -161,11 +161,62 @@ const php = process.env.PHP_BIN || "php";
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto(base + "index.php?page=login");
+    assert.equal(
+      await page.locator('.auth-tabs [aria-current="page"]').textContent(),
+      "Mit Google",
+    );
+    assert.equal(await page.getByLabel("Passwort", { exact: true }).count(), 0);
+    assert.equal(
+      await page
+        .getByRole("link", { name: "Jetzt registrieren", exact: true })
+        .count(),
+      0,
+    );
     await audit(page, "google-login");
+    await page.getByRole("link", { name: "Mit Passwort", exact: true }).click();
+    assert.equal(
+      await page.locator('.auth-tabs [aria-current="page"]').textContent(),
+      "Mit Passwort",
+    );
+    assert.equal(
+      await page
+        .getByRole("button", { name: "Mit Google anmelden", exact: true })
+        .count(),
+      0,
+    );
+    await audit(page, "google-password-login");
+    await page
+      .getByLabel("Benutzername oder E-Mail", { exact: true })
+      .fill("existing@example.com");
+    await page.getByLabel("Passwort", { exact: true }).fill("incorrect");
+    await page.getByRole("button", { name: "Anmelden", exact: true }).click();
+    await page.getByRole("alert").waitFor();
+    assert.equal(
+      await page.locator('.auth-tabs [aria-current="page"]').textContent(),
+      "Mit Passwort",
+      "Failed password login stays on the second tab",
+    );
+    assert.equal(
+      await page
+        .getByLabel("Benutzername oder E-Mail", { exact: true })
+        .inputValue(),
+      "existing@example.com",
+    );
+
     await page
       .getByRole("link", { name: "Jetzt registrieren", exact: true })
       .click();
     await audit(page, "google-registration");
+    await page
+      .getByRole("link", { name: "Jetzt anmelden", exact: true })
+      .click();
+    assert.equal(
+      await page.locator('.auth-tabs [aria-current="page"]').textContent(),
+      "Mit Passwort",
+      "Return from registration stays on password tab",
+    );
+
+    await page.getByRole("link", { name: "Mit Google", exact: true }).click();
     await page
       .getByRole("button", { name: "Mit Google anmelden", exact: true })
       .click();
@@ -238,13 +289,26 @@ const php = process.env.PHP_BIN || "php";
     const native = await nojs.newPage();
     await native.goto(base + "index.php?page=login");
     await native
+      .getByRole("link", { name: "Mit Passwort", exact: true })
+      .click();
+    await native
+      .getByLabel("Benutzername oder E-Mail", { exact: true })
+      .fill("existing@example.com");
+    await native.getByLabel("Passwort", { exact: true }).fill("Localpass!12");
+    await native.getByRole("button", { name: "Anmelden", exact: true }).click();
+    await native.getByRole("heading", { name: /Hallo Existing/ }).waitFor();
+    await native.getByRole("link", { name: /Mein Konto:/ }).click();
+    await native.getByRole("button", { name: "Abmelden", exact: true }).click();
+    await native.goto(base + "index.php?page=login");
+
+    await native
       .getByRole("button", { name: "Mit Google anmelden", exact: true })
       .click();
     await native
       .getByRole("heading", { name: "Google-Weiterleitung gestartet" })
       .waitFor();
     console.log(
-      `OK: Google login/link/reauthentication, no-JS form start, local password creation, ${audits} axe/overflow audits`,
+      `OK: Google-first login/password tab, linking/reauthentication, no-JS tabs and form start, local password creation, ${audits} axe/overflow audits`,
     );
   } finally {
     if (browser) await browser.close();

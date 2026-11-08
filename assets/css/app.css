@@ -1608,20 +1608,38 @@ legend {
 .google-button img {
   flex-shrink: 0;
 }
-.auth-divider {
+/* Navigation funktioniert auch ohne JavaScript. */
+.auth-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 24px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f5f3fb;
+}
+.auth-tabs a {
+  flex: 1;
   display: flex;
   align-items: center;
-  gap: 12px;
-  color: #68677d;
-  font-size: 0.8rem;
-  margin: 24px 0;
+  justify-content: center;
+  min-height: 44px;
+  padding: 8px;
+  border-radius: 8px;
+  text-align: center;
+  text-decoration: none;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #55516e;
 }
-.auth-divider::before,
-.auth-divider::after {
-  content: "";
-  height: 1px;
-  flex: 1;
-  background: #e7e7f0;
+.auth-tabs a[aria-current="page"] {
+  color: #5146b9;
+  background: white;
+  box-shadow: 0 2px 6px #30265b14;
+}
+.auth-tabs a:hover {
+  color: #5146b9;
+  background: white;
 }
 .google-help {
   margin-top: 12px;

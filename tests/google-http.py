@@ -74,7 +74,13 @@ with tempfile.TemporaryDirectory(prefix='mywish-google-http-') as temp:
    guest=Client(base)
    check(guest.request('auth/google/start.php')[0]==405,'OAuth starts with POST only')
    code,body,_=guest.request('auth/google/start.php',b'purpose=login&csrf=wrong',{'Content-Type':'application/x-www-form-urlencoded'});check(code==403,'Start requires CSRF')
-   check(b'Mit Google anmelden' in guest.request('index.php?page=login')[1],'Google button displayed when configured')
+   google_html=guest.request('index.php?page=login')[1]
+   check(b'Mit Google anmelden' in google_html and b'name="password"' not in google_html and b'Jetzt registrieren' not in google_html,'Google is the default; password and registration are in the second tab')
+   password_html=guest.request('index.php?page=login&method=password')[1]
+   check(b'name="password"' in password_html and b'Jetzt registrieren' in password_html and b'Mit Google anmelden' not in password_html,'Password tab includes local login and registration')
+   shared_id=owner.api('state')['lists'][0]['id']
+   tabs=guest.request('index.php?page=login&returnList='+shared_id)[1]
+   check(('method=password&amp;returnList='+shared_id).encode() in tabs,'Changing login tab retains the shared list')
    # Invalid state/nonce and replay do not establish a session.
    pending=guest.start();guest.callback(pending,'bad','bad@example.com',state='wrong');guest.api('state',status=401)
    pending=guest.start();guest.callback(pending,'bad','bad@example.com',{'nonce':'wrong'});guest.api('state',status=401)
