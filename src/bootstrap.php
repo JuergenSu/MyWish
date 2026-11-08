@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/Store.php';
+require_once __DIR__.'/SessionStore.php';
 require_once __DIR__.'/App.php';
 require_once __DIR__.'/Metadata.php';
 require_once __DIR__.'/GoogleOidc.php';
@@ -33,19 +34,28 @@ $base = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/index.php'))
 if (str_ends_with($base, '/auth/google')) { $base=substr($base,0,-strlen('/auth/google')); }
 if (str_ends_with($base, '/api')) { $base = dirname($base); }
 $base = $base === '/' || $base === '.' ? '' : rtrim($base, '/');
-ini_set('session.use_strict_mode', '1');
-ini_set('session.use_only_cookies', '1');
-session_name('mywish_'.substr(hash('sha256', __DIR__), 0, 10));
-session_set_cookie_params(['lifetime'=>0,'path'=>$base.'/', 'secure'=>(!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'), 'httponly'=>true,'samesite'=>'Lax']);
-if (!@session_start()) { bootFailure('Die PHP-Session kann nicht gestartet werden. Bitte Hosting-Einstellungen prüfen.'); }
-if (isset($_SESSION['seen']) && time() - $_SESSION['seen'] > 7200) { $_SESSION = []; session_regenerate_id(true); }
-$_SESSION['seen'] = time();
-$_SESSION['csrf'] ??= bin2hex(random_bytes(32));
 try {
 $config = is_file(dirname(__DIR__).'/config.php') ? require dirname(__DIR__).'/config.php' : [];
 if (!is_array($config)) { throw new Problem(503,'config.php muss ein Konfigurationsarray zurückgeben.'); }
 $storageDirectory=$config['storage'] ?? dirname(__DIR__).'/storage';
-$app = new App(new Store($storageDirectory), $config['registration'] ?? null);
+$store=new Store($storageDirectory);
+$sessions=new MyWish\SessionStore($storageDirectory.'/sessions');
+ini_set('session.use_strict_mode', '1');
+ini_set('session.use_only_cookies', '1');
+ini_set('session.gc_maxlifetime',(string)MyWish\SessionStore::LIFETIME);
+ini_set('session.gc_probability','1');
+ini_set('session.gc_divisor','100');
+if (!session_set_save_handler($sessions,true)) { throw new Problem(503,'Die dauerhafte Sitzungsspeicherung kann nicht aktiviert werden. Bitte PHP-Session-Einstellungen prüfen.'); }
+session_name('mywish_'.substr(hash('sha256', __DIR__), 0, 10));
+$cookie=['path'=>$base.'/', 'secure'=>(!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'), 'httponly'=>true,'samesite'=>'Lax'];
+session_set_cookie_params(['lifetime'=>MyWish\SessionStore::LIFETIME]+$cookie);
+if (!@session_start()) { bootFailure('Die PHP-Session kann nicht gestartet werden. Bitte Hosting-Einstellungen prüfen.'); }
+if (isset($_SESSION['seen']) && time() - $_SESSION['seen'] >= MyWish\SessionStore::LIFETIME) { $_SESSION = []; session_regenerate_id(true); }
+$_SESSION['seen'] = time();
+$_SESSION['csrf'] ??= bin2hex(random_bytes(32));
+// Die 14 Tage gelten ab der letzten Nutzung, auch nach einem Browser-Neustart.
+setcookie(session_name(),session_id(),['expires'=>time()+MyWish\SessionStore::LIFETIME]+$cookie);
+$app = new App($store, $config['registration'] ?? null);
 $google = new MyWish\GoogleOidc(is_array($config['google'] ?? null) ? $config['google'] : [], $storageDirectory);
 $imageSearch = new MyWish\OpenAiImages(is_array($config['openai'] ?? null) ? $config['openai'] : [], $storageDirectory);
 if ($google->available()) { header('Content-Security-Policy: '.$csp.' https://accounts.google.com;'); } }

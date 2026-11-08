@@ -17,6 +17,7 @@ jobs:
           coverage: none
       - run: find . -name '*.php' -not -path './storage/state.php' -print0 | xargs -0 -n1 php -l
       - run: php tests/unit.php
+      - run: php tests/sessions.php
       - run: php tests/import.php
       - run: php tests/google.php
       - run: php tests/openai-images.php

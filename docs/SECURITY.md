@@ -9,7 +9,7 @@ Ein normales Konto ist entweder Eigentümer oder Schenkender im Kontext einer Li
 | IDOR / Rechteausweitung | Owner-ID kommt ausschließlich aus Session. CRUD und Reservierungen prüfen Eigentümer serverseitig unter Lock. Fremde Mutationen 403. HTTP-Tests. |
 | Überraschung verraten | Snapshot baut Wunschfelder je Eigentümer auf. Keine Reservierungsfelder oder fremden Nutzer-IDs/Namen für Eigentümer, keine statusabhängigen Löschmeldungen. Vergleich identischer Owner-Snapshots nach Reserve/Unreserve. |
 | Gleichzeitige Reservierung | Gemeinsamer Lock für Lesen, Mengenprüfung und Schreiben; atomarer Rename. Test: zehn unabhängige Sessions, genau ein bzw. drei Gewinner. |
-| CSRF / Session Fixation | Zufallstoken, POST, HttpOnly/SameSite-Cookie, Secure bei HTTPS, strict_mode und ID-Wechsel bei Login/Logout/Passwortwechsel. Inaktivitätslimit und Sitzungsversion. |
+| CSRF / Session Fixation | Zufallstoken, POST, HttpOnly/SameSite-Cookie, Secure bei HTTPS, strict_mode und ID-Wechsel bei Login/Logout/Passwortwechsel. 14 Tage Inaktivitätslimit mit erneuertem Cookie, geschützten Sitzungsdateien und Sitzungsversion. |
 | Brute Force | Zehn erfolglose Logins je gehashter IP in 15 Minuten, 30 Registrierungen separat; Ablaufbereinigung bei Login/Registrierung. Keine Passwort-/Tokenlogs. NAT kann mehrere Nutzer betreffen. |
 | XSS | Zentrales HTML-Escaping, URL-Scheme-Liste, kein innerHTML, lokale Skripte/CSS, CSP ohne unsafe-inline, kein SVG-Upload. Test mit aktiven HTML-Strings. |
 | SSRF / DNS Rebinding | Nur HTTP(S), keine Credentials/Sonderports. DNS-A-Ziele auf öffentliche IPv4 prüfen, konkret per CURLOPT_RESOLVE pinnen, Proxy deaktiviert, jeden Redirect erneut prüfen (max. 3). Kein Wechsel des aufgelösten Ziels beim Verbinden. Keine IPv6-/Übergangstunnel. Zeitlimit, Größenlimit und TLS-Prüfung. |
@@ -36,3 +36,12 @@ Keine Access-/Refresh-/ID-Tokens in Storage oder Logs; nur ein geschützter öff
 Die manuelle Google-Bildersuche wurde entfernt. Eingegebene direkte Bildadressen durchlaufen weiterhin dieselben öffentlichen DNS-/Redirect-/MIME-/Größenprüfungen wie Shop-Bilder und werden nur lokal ausgeliefert.
 
 Öffentliche Listen/Medien tragen weder Reservierungsfelder noch Konto-/Sitzungsdaten im Inhalt. Bilder mit `share` müssen zur zugehörigen Liste gehören; Sitzungs-Vorschauen bleiben geschützt. Rücksprünge nach Anmeldung akzeptieren nur Listen-IDs. Der öffentliche Link kann weitergegeben werden; kein Widerruf einzelner Empfänger ohne Löschen der Liste. Die Ansicht wird nicht im Offline-Cache gespeichert und ist für Suchmaschinen mit `noindex, nofollow` markiert.
+
+
+## Dauerhafte Anmeldung
+
+Das Cookie und die Sitzung gelten 14 Tage seit der letzten Nutzung. Der Server erneuert das Cookie bei jeder Anfrage; Browser-Neustarts beenden die Anmeldung nicht. Die App speichert Sitzungen in einem eigenen Ordner `sessions/` im konfigurierten Datenordner, unabhängig von `session.save_path` und von kürzeren Garbage-Collection-Fristen anderer PHP-Anwendungen. Sitzungsdateien haben den PHP-Abbruchschutz wie der übrige Storage, Dateirechte 0600 und einen exklusiven Lock während der Anfrage. Neue IDs haben 256 Bit Zufall; unbekannte, gelöschte und abgelaufene IDs werden im Strict Mode verworfen.
+
+Nach exakt 14 Tagen ohne Nutzung liefern Dateien keine Anmeldedaten mehr, auch wenn die automatische Bereinigung noch nicht gelaufen ist. Logout und ID-Wechsel leeren die alte Datei unter demselben Lock; wartende Anfragen können sie nicht mit alten Zugangsdaten wiederherstellen. Passwort-/Provider-Änderungen und Kontolöschung werden weiter anhand der Sitzungsversion geprüft. Google-OAuth-State (zehn Minuten) und frische Kontobestätigung (fünf Minuten) behalten ihre bisherigen Fristen.
+
+Bei diesem Update müssen Nutzer sich einmal neu anmelden; alte Sitzungen im PHP-Standardspeicher werden nicht migriert. Bei Umzug/Restore den Sitzungsordner nicht übernehmen. Wer Cookies oder den Sitzungsordner löscht, muss sich erneut anmelden.
