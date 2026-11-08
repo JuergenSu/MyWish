@@ -133,7 +133,7 @@ const axe = fs.readFileSync(
       const wishUrl = base + "index.php?page=wish&listId=" + list;
       await page.goto(wishUrl);
       assert.equal(searches, 0, "No paid search on opening form");
-      await page.locator('[name="title"]').fill("Cuisinart RBT2200E");
+      await page.locator('[name="title"]').fill("source-only");
       await page
         .locator("#productUrl")
         .fill(
@@ -154,11 +154,11 @@ const axe = fs.readFileSync(
       );
       assert.equal(
         await page.locator('[name="title"]').inputValue(),
-        "Cuisinart RBT2200E",
+        "source-only",
       );
       assert.equal(
         await page.locator("#imported-image-box a").getAttribute("href"),
-        "https://shop.example/product",
+        "https://shop.example/with-image",
       );
       assert.equal(await page.locator("#google-image-search").count(), 0);
       assert.ok(!(await page.content()).includes("sk-test-server-key"));
@@ -169,7 +169,7 @@ const axe = fs.readFileSync(
         await page
           .getByRole("link", { name: "Bildquelle" })
           .getAttribute("href"),
-        "https://shop.example/product",
+        "https://shop.example/with-image",
       );
       await audit(page);
       await page.goto(wishUrl);

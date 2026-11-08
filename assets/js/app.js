@@ -188,16 +188,24 @@ if (imageSearch) {
   async function search() {
     if (busy) return;
     if (!form.elements.title.value.trim()) {
+      status.className = "notice soft";
       status.textContent = "Bitte zuerst einen Produktnamen eingeben.";
       form.elements.title.focus();
       return;
     }
-    if (form.elements.image?.files?.length) return;
+    if (form.elements.image?.files?.length) {
+      status.className = "notice soft";
+      status.textContent =
+        "Ein eigenes Bild ist ausgewählt. Entferne die Dateiauswahl, wenn OpenAI suchen soll.";
+      return;
+    }
     busy = true;
     controller = new AbortController();
     button.disabled = true;
     form.setAttribute("aria-busy", "true");
-    status.textContent = "OpenAI sucht ein Produktbild …";
+    status.className = "notice soft";
+    status.textContent =
+      "OpenAI sucht ein Bild, bei Bedarf auch ein allgemeines Beispielbild …";
     const initial = signature();
     const payload = { action: "searchImage" };
     ["csrf", "listId", "id", ...fields].forEach(
@@ -223,6 +231,9 @@ if (imageSearch) {
       form.querySelector('[name="useImportedImage"]')?.remove();
       box.replaceChildren();
       status.textContent = result.data.warning;
+      status.className = result.data.hasImage
+        ? "notice success"
+        : "notice soft";
       if (!result.data.hasImage) return;
       const selected = document.createElement("input");
       Object.assign(selected, {
@@ -242,7 +253,7 @@ if (imageSearch) {
       });
       const credit = document.createElement("a");
       Object.assign(credit, {
-        textContent: "Bildquelle (öffnet neuen Tab)",
+        textContent: "Bildvorschlag · Bildquelle (öffnet neuen Tab)",
         href: result.data.imageSourceUrl,
         target: "_blank",
         rel: "noopener noreferrer",
@@ -253,6 +264,7 @@ if (imageSearch) {
       box.append(selection, preview, credit, help);
       document.querySelector(".image-search-help")?.remove();
     } catch (error) {
+      status.className = "notice error";
       status.textContent =
         error.name === "AbortError"
           ? "Bildsuche abgebrochen. Bitte mit den geänderten Angaben erneut suchen."

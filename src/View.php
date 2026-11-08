@@ -32,7 +32,7 @@ function field(string $name,string $label,mixed $value='',string $type='text',bo
 function textarea(string $name,string $label,mixed $value): string { return '<label>'.e($label).'<textarea name="'.e($name).'" rows="4" maxlength="4000">'.e(is_scalar($value) ? $value : '').'</textarea></label>'; }
 function imageField(bool $hasImage): string { return '<label>Eigenes Bild (optional)<input type="file" name="image" accept="image/jpeg,image/png,image/webp"></label><p class="field-help">JPEG, PNG oder WebP · max. 2 MB und 16 Megapixel. Bilder werden geschützt gespeichert.</p>'.($hasImage ? '<label class="check"><input type="checkbox" name="removeImage" value="yes">Vorhandenes Bild entfernen</label>' : ''); }
 function media(string $type,string $id): string { global $base; return $base.'/media.php?type='.$type.'&id='.$id; }
-function imageSourceLink(string $source): string { return $source==='' ? '' : '<p class="field-help"><a href="'.e($source).'" target="_blank" rel="noopener noreferrer">Bildquelle<span class="sr-only"> (öffnet neuen Tab)</span></a></p>'; }
+function imageSourceLink(string $source): string { return $source==='' ? '' : '<p class="field-help">Bildvorschlag · <a href="'.e($source).'" target="_blank" rel="noopener noreferrer">Bildquelle<span class="sr-only"> (öffnet neuen Tab)</span></a></p>'; }
 function initials(string $name): string { return function_exists('mb_substr') ? mb_strtoupper(mb_substr($name,0,1)) : strtoupper(substr($name,0,1)); }
 function dateDE(string $date): string { return substr($date,8,2).'.'.substr($date,5,2).'.'.substr($date,0,4); }
 function backLink(string $query,string $label): string { return '<a class="back-link" href="'.e(url($query)).'">'.icon('back').e($label).'</a>'; }

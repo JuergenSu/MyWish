@@ -13,10 +13,23 @@ function curl_exec(object $c): bool
         $input=json_decode($payload['input'],true); $title=$input['title'];
         $results=in_array($title,['no-match','text-only'],true) ? [] : [['type'=>'image_result','image_url'=>'https://images.example/'.($title==='fail-download' ? 'invalid.svg' : 'openai-good.png'),'source_website_url'=>'https://shop.example/product','thumbnail_url'=>'','caption'=>'Testprodukt']];
         if ($title==='unsafe-first') { array_unshift($results,['type'=>'image_result','image_url'=>'http://127.0.0.1/private.png','source_website_url'=>'https://shop.example/product']); }
-        $reply=['status'=>$title==='provider-error' ? 401 : 200,'body'=>$title==='provider-error' ? '{"error":{"message":"Do not expose sk-test-server-key"}}' : json_encode(['status'=>'completed','output'=>[['type'=>'web_search_call','status'=>'completed','results'=>$results],['type'=>'message','content'=>[['type'=>'output_text','text'=>'https://images.example/invented.jpg']]]]])];
+        $output=[['type'=>'web_search_call','status'=>'completed','results'=>$results],['type'=>'message','content'=>[['type'=>'output_text','text'=>'https://images.example/invented.jpg']]]];
+        if (in_array($title,['source-only','source-no-images','source-private-first'],true)) {
+            $sources=[['url'=>'https://shop.example/'.($title==='source-no-images' ? 'no-images' : 'with-image')]];
+            if ($title==='source-private-first') { array_unshift($sources,['url'=>'http://127.0.0.1/private']); }
+            $output=[['type'=>'web_search_call','status'=>'completed','results'=>[],'action'=>['type'=>'search','sources'=>$sources]]];
+        }
+        if ($title==='citation-only') { $output=[['type'=>'message','content'=>[['type'=>'output_text','text'=>'A source','annotations'=>[['type'=>'url_citation','url'=>'https://shop.example/with-image']]]]]]; }
+        if ($title==='no-tool') { $output=[['type'=>'message','content'=>[['type'=>'output_text','text'=>'No search performed.']]]]; }
+        if ($title==='source-after-broken') {
+            $broken=[];
+            for ($i=0;$i<4;$i++) { $broken[]=['type'=>'image_result','image_url'=>'https://images.example/invalid.svg?i='.$i,'source_website_url'=>'https://shop.example/product']; }
+            $output=[['type'=>'web_search_call','status'=>'completed','results'=>$broken,'action'=>['sources'=>[['url'=>'https://shop.example/with-image']]]]];
+        }
+        $reply=['status'=>$title==='provider-error' ? 401 : 200,'body'=>$title==='provider-error' ? '{"error":{"message":"Do not expose sk-test-server-key"}}' : json_encode(['status'=>'completed','output'=>$output])];
     } elseif (str_starts_with($c->url,'https://images.example/')) {
         $reply=['status'=>200,'body'=>str_contains($c->url,'invalid.svg') ? '<svg></svg>' : require __DIR__.'/product-image.php'];
-    } elseif (str_starts_with($c->url,'https://shop.example/')) { $reply=['status'=>200,'body'=>'<title>Shopprodukt</title>']; }
+    } elseif (str_starts_with($c->url,'https://shop.example/')) { $reply=['status'=>200,'body'=>'<title>Shopprodukt</title>'.(str_contains($c->url,'with-image') ? '<meta property="og:image" content="https://images.example/from-page.png">' : '')]; }
     else { $reply=['status'=>503,'body'=>'']; }
     $c->status=$reply['status'];
     if ($reply['failure'] ?? false) { return false; }

@@ -68,7 +68,11 @@ def scenario(base,dest):
  code,body,_=owner.request('index.php?page=wish&listId='+lid,urllib.parse.urlencode(form).encode(),{'Content-Type':'application/x-www-form-urlencoded'})
  check(code==503 and b'HTTP 401' in body and b'sk-test-server-key' not in body and 'useImportedImage' not in Inputs(body.decode()).values,'Provider error preserves form without key exposure or stale image')
  result=owner.post('searchImage',{**payload,'title':'no-match'})
- check(not result['hasImage'] and 'kein passendes' in result['warning'],'No-match search allows manual continuation')
+ check(not result['hasImage'] and 'keine Bildtreffer' in result['warning'],'No-match search explains empty results and allows manual continuation')
+ result=owner.post('searchImage',{**payload,'title':'source-only'})
+ check(result['hasImage'] and result['imageSourceUrl']=='https://shop.example/with-image' and 'abweichen' in result['warning'],'Missing direct image results are recovered through a source page and labeled as proposals')
+ other_list=guest.post('saveList',{'name':'Other wishes','occasion':'Anderes'},201)['id']
+ guest.post('searchImage',{**payload,'listId':other_list,'title':'no-tool'},503)
  # Automatic fallback is a second request after failed normal import.
  form={'action':'import','csrf':owner.csrf,'listId':lid,'productUrl':payload['productUrl'],'title':'Cuisinart RBT2200E'}
  before=used(dest)
