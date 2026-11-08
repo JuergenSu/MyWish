@@ -25,3 +25,10 @@ Das Startbildschirm-Banner verwendet nur einen lokalen Ausblend-Zeitstempel. Man
 Keine Garantie gegen absichtliche Zweitkonten, bösartigen Betreiber, kompromittiertes PHP-Hosting oder Analyse von Betriebssystem-/HTTP-Timing. Anmeldung, CSRF, Mengenprüfung und atomare Transaktionen verhindern die normalen V1-Zugriffsfehler. TLS-Terminierung, Session-Speicher, Dateirechte, Backupfristen und Serverlogs liegen beim Betreiber. Keine Telemetrie, externen Webfonts oder Tracking-Skripte. Import kontaktiert einen Shop erst auf ausdrücklichen Button-Klick serverseitig.
 
 Die Tests ersetzen kein unabhängiges Penetration Testing. Echte Apache-/Nginx-Hostingkombinationen und mobile Safari müssen vor dem jeweiligen Livebetrieb anhand der Release-Checkliste geprüft werden.
+
+
+## Optionale Google-Anmeldung
+
+OAuth/OIDC-Codefluss mit PKCE, CSRF-geschütztem POST-Start, einmaligem Session-State und Nonce. Signierte ID-Tokens werden mit der mitgelieferten JWT-Bibliothek auf feste Google-Issuer, RS256, Audience, Zeitgrenzen und bestätigte E-Mail geprüft. Die dauerhafte Zuordnung nutzt die Google-Subject-ID; keine automatische Verknüpfung anhand der E-Mail. Verknüpfen verlangt die bisherige Authentifizierung und ist an User-ID/Sitzungsversion gebunden. Google-only-Konten müssen für Änderungen/Löschung frisch dasselbe Google-Konto bestätigen. Trennen ohne lokale Anmeldemöglichkeit ist gesperrt. Der Dummy-Hash zum zeitlich einheitlichen Passwortvergleich darf niemals eine Anmeldung bei einem Google-only-Konto ermöglichen.
+
+Keine Access-/Refresh-/ID-Tokens in Storage oder Logs; nur ein geschützter öffentlicher JWK-Cache. Ohne Nutzerklick keine Google-Anfragen im Browser. Die CSP erlaubt bei konfiguriertem Provider lediglich die notwendige Formularweiterleitung nach `accounts.google.com`; Skripte und Bilder bleiben lokal. [Einrichtung und Nachweise](GOOGLE_LOGIN.md).

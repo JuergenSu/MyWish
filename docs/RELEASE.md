@@ -21,12 +21,9 @@ Backup/Restore wird gemäß Epic durch den Betreiber über Webspace-Dateizugriff
 
 Linux, PHP 8.4.24, Chromium, Playwright und axe-core:
 
-- `php tests/unit.php`: 76 Prüfungen (Passwortregel mit 8 Zeichen und Sonderzeichen einschließlich Unicode-/Grenzfällen, Centpreise, URLs, Bildsignaturen, OG/JSON-LD, reservierte IP-Bereiche, defekte/neue Schema-Versionen, Schreibabbruch, 20 parallele Storage-Schreiber).
 - `php tests/import.php`: 52 deterministische Import-/Transportprüfungen (DNS-Pinning, Proxy/Redirect-Policy, öffentliche Ziele, Redirect zu privat/Loopback, Übergröße, Redirect-Limit, Transportfehler und Shop-403). Transport ist hier simuliert; kein Nachweis gegen einen bestimmten echten Händler.
-- `python3 tests/integration.py`: 398 HTTP-Prüfungen. Frische Kopie unter `/` und `/mywish/`, Anmeldung, zwei Listen, Menge 1/3, zehn konkurrierende unabhängige Sessions, Rechteverletzungen, Owner-Snapshot ohne Spoiler, XSS-Escaping, ungültige Inputs/CSRF, echter Multipart-Upload, MIME-Spoof-Ablehnung, Passwortvalidierung bei Setup/Registrierung/Änderung, Kompatibilität bestehender Passwörter, Sitzungsversion, Rate Limit, Kontolöschung, Datendirektzugriff, Backup-Roundtrip, beschädigter/readonly Storage, Registrierungs-Override und zwei gleichzeitige Setup-Anfragen.
-- `php tests/unit.php`: 76 Prüfungen (Passwortregel mit mindestens 8 Zeichen ohne Sonderzeichenpflicht einschließlich Unicode-/Grenzfällen, Centpreise, URLs, Bildsignaturen, OG/JSON-LD, reservierte IP-Bereiche, defekte/neue Schema-Versionen, Schreibabbruch, 20 parallele Storage-Schreiber).
-- `php tests/import.php`: 19 deterministische Transportprüfungen (DNS-Pinning, Proxy/Redirect-Policy, öffentliche Ziele, Redirect zu privat/Loopback, Übergröße, Redirect-Limit, Transportfehler und Shop-403). Transport ist hier simuliert; kein Nachweis gegen einen bestimmten echten Händler.
 - `python3 tests/integration.py`: 372 HTTP-Prüfungen. Frische Kopie unter `/` und `/mywish/`, Anmeldung, zwei Listen, Menge 1/3, zehn konkurrierende unabhängige Sessions, Rechteverletzungen, Owner-Snapshot ohne Spoiler, XSS-Escaping, ungültige Inputs/CSRF, echter Multipart-Upload, MIME-Spoof-Ablehnung, Passwortvalidierung bei Setup/Registrierung/Änderung, Kompatibilität bestehender Passwörter, Sitzungsversion, Rate Limit, Kontolöschung, Datendirektzugriff, Backup-Roundtrip, beschädigter/readonly Storage, Registrierungs-Override und zwei gleichzeitige Setup-Anfragen.
+- `php tests/unit.php`: 76 Prüfungen (Passwortregel mit mindestens 8 Zeichen ohne Sonderzeichenpflicht einschließlich Unicode-/Grenzfällen, Centpreise, URLs, Bildsignaturen, OG/JSON-LD, reservierte IP-Bereiche, defekte/neue Schema-Versionen, Schreibabbruch, 20 parallele Storage-Schreiber).
 - `node tests/browser.cjs`: Einrichtung/CRUD/Bildupload ohne JavaScript; Reservieren/Freigeben mit JavaScript; Skip-Link und lokale Ressourcen. Screenshots, Overflow und axe für Setup, Login, Wunschformular, Dashboard, Liste, Reservierungen und Konto bei 320/360/768/1440 px. 32 Seiten-/Viewport-Audits, keine WCAG-A/AA/2.1-AA-Verstöße im automatisierten Check.
 - Amazon-Regressionen: synthetische Fixtures für aktuellen/älteren Produktaufbau, deutsche Preise, Hauptbild-Auswahl, Captcha, 503 und große HTML-Antworten; tatsächliche Formularübernahme und manuelles Speichern bei Ausfall in Root/Subdir getestet. Der Nutzerlink `https://www.amazon.de/Orzly-Lenkrader-Kompatibel-Joy-Geschenkbox/dp/B0FLM3M1JJ/` lieferte beim Live-Abruf am 8. November 2026 HTTP 503, auch als kanonische `/dp/`-URL. Daher kein Nachweis eines erfolgreichen Live-Imports dieses Produkts und keine Zusage zur Umgehung von Amazon-Sperren.
 - PHP-Syntaxprüfung für sämtliche PHP-Dateien.
@@ -46,3 +43,14 @@ Diese externen Prüfungen wurden in der Entwicklungsumgebung nicht ausgeführt; 
 - [ ] Dateirechte, `display_errors=Off`, Serverlogs, Backup-Aufbewahrung und Registrierungsmodus prüfen. Setup vor öffentlicher Freigabe abschließen.
 
 Die GitHub-Actions-Matrix für PHP 8.2/8.3/8.4 und Chromium ist eingerichtet; ihr Status muss nach Push geprüft werden. Lokal belegt ist PHP 8.4.24.
+
+
+## Optionale Google-Erweiterung
+
+Schema 2 mit atomarer, vorher gesicherter Schema-1-Migration. Passwort-Login bleibt verfügbar; Google ist ohne Konfiguration deaktiviert. Details: [GOOGLE_LOGIN.md](GOOGLE_LOGIN.md).
+
+- `php tests/google.php`: 43 Token-/State-/Account-/Migrationsprüfungen, einschließlich Algorithmusverwechslung, falschem Issuer/Audience/Nonce, Ablaufzeit, unbestätigter E-Mail, Replay, Google-only-Dummy-Hash-Abwehr und bytegleichem Vorab-Backup.
+- `python3 tests/google-http.py`: 366 HTTP-Prüfungen für komplette Callback-/Verknüpfungs-/Reauthentifizierungsabläufe in Root und Unterordner; keine implizite E-Mail-Verknüpfung, geschlossene Registrierung, Profil/Passwort/Trennen/Löschen und geschützter JWK-Cache.
+- `node tests/google-browser.cjs`: Login, Registrierung, Kontoverknüpfung, frische Bestätigung und lokale Passwortanlage mit echten lokalen Redirect-/Callback-Seiten; Google-Transport simuliert. Der appseitige Start funktioniert als natives Formular auch ohne JavaScript; Googles eigene Oberfläche kann JavaScript benötigen. Zwölf axe-/Overflow-Audits für Google-Seiten bei 360/768/1440 px.
+
+Diese Provider-Tests benötigen keine echten Credentials. Der Live-Abnahmeschritt mit der tatsächlichen Google-Cloud-Konfiguration und Domain steht noch aus.

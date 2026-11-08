@@ -18,7 +18,9 @@ jobs:
       - run: find . -name '*.php' -not -path './storage/state.php' -print0 | xargs -0 -n1 php -l
       - run: php tests/unit.php
       - run: php tests/import.php
+      - run: php tests/google.php
       - run: python3 tests/integration.py
+      - run: python3 tests/google-http.py
   browser:
     runs-on: ubuntu-latest
     steps:
@@ -34,6 +36,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node tests/browser.cjs
       - run: node tests/install-banner.cjs
+      - run: node tests/google-browser.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

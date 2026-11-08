@@ -62,7 +62,7 @@ final class App
         }
         throw new Problem(401, 'Die Sitzung ist abgelaufen. Bitte erneut anmelden.');
     }
-    public static function publicUser(array $u): array { return array_intersect_key($u, array_flip(['id','name','username'])); }
+    public static function publicUser(array $u): array { return array_intersect_key($u, array_flip(['id','name','username','googleEmail'])) + ['hasLocalPassword'=>is_string($u['passwordHash']), 'googleLinked'=>$u['googleSub']!==null]; }
     private static function owner(array $s, string $listId, string $userId): array
     {
         $list = self::find($s['lists'], $listId);
@@ -115,7 +115,7 @@ final class App
                 $registration = $in['registration'] ?? 'open';
                 if (!in_array($registration, ['open','closed'], true)) { throw new Problem(422, 'Ungültiger Registrierungsmodus.'); }
                 $s['settings'] = ['siteName'=>self::text($in, 'siteName', 80, true), 'registration'=>$registration, 'createdAt'=>self::now()];
-                $u = ['id'=>self::id(),'username'=>$username,'name'=>$name,'passwordHash'=>$hash,'sessionVersion'=>1,'createdAt'=>self::now()];
+                $u = ['id'=>self::id(),'username'=>$username,'name'=>$name,'passwordHash'=>$hash,'sessionVersion'=>1,'createdAt'=>self::now(),'googleSub'=>null,'googleEmail'=>null];
                 $s['users'][] = $u;
                 return ['login'=>$u, 'message'=>'Willkommen bei MyWish!'];
             }
@@ -130,14 +130,14 @@ final class App
                 if ($action === 'login') {
                     $pass = $in['password'] ?? '';
                     $valid = is_string($pass) && strlen($pass)<=72 && password_verify($pass, $existing['passwordHash'] ?? '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.');
-                    if (!$existing || !$valid) { $s['attempts'][]=['ip'=>$ip,'at'=>time(),'kind'=>$action]; return new Problem(401, 'Anmeldung nicht möglich. Bitte Zugangsdaten prüfen.'); }
+                    if (!$existing || !is_string($existing['passwordHash']) || !$valid) { $s['attempts'][]=['ip'=>$ip,'at'=>time(),'kind'=>$action]; return new Problem(401, 'Anmeldung nicht möglich. Bitte Zugangsdaten prüfen.'); }
                     $s['attempts'] = array_values(array_filter($s['attempts'], fn($a)=>$a['ip']!==$ip || ($a['kind'] ?? 'login')!=='login'));
                     return ['login'=>$existing,'message'=>'Schön, dass du da bist!'];
                 }
                 if (($this->registrationOverride ?? $s['settings']['registration']) !== 'open') { throw new Problem(403, 'Die Registrierung ist geschlossen.'); }
                 $s['attempts'][]=['ip'=>$ip,'at'=>time(),'kind'=>$action];
                 if ($existing) { return new Problem(409, 'Dieses Benutzerkonto kann nicht registriert werden. Bitte einen anderen Namen verwenden.'); }
-                $u=['id'=>self::id(),'username'=>$username,'name'=>self::text($in,'name',100,true),'passwordHash'=>password_hash(self::password($in), PASSWORD_DEFAULT),'sessionVersion'=>1,'createdAt'=>self::now()];
+                $u=['id'=>self::id(),'username'=>$username,'name'=>self::text($in,'name',100,true),'passwordHash'=>password_hash(self::password($in), PASSWORD_DEFAULT),'sessionVersion'=>1,'createdAt'=>self::now(),'googleSub'=>null,'googleEmail'=>null];
                 $s['users'][]=$u;
                 return ['login'=>$u,'message'=>'Dein Konto ist bereit.'];
             }
@@ -147,16 +147,20 @@ final class App
             switch ($action) {
                 case 'logout': return ['logout'=>true,'message'=>'Du bist abgemeldet.'];
                 case 'account':
-                    if (!self::verifyCurrent($in,$u['passwordHash'])) { throw new Problem(403,'Aktuelles Passwort ist nicht korrekt.'); }
+                    if (!self::verifyCurrent($in,$u)) { throw new Problem(403,'Bitte dein aktuelles Passwort bestätigen oder dich erneut mit Google anmelden.'); }
                     foreach ($s['users'] as &$row) { if ($row['id']===$uid) {
                         $row['name']=self::text($in,'name',100,true);
                         if (($in['newPassword'] ?? '')!=='') { $row['passwordHash']=password_hash(self::password($in,'newPassword'),PASSWORD_DEFAULT); $row['sessionVersion']++; }
                         $updated=$row;
                     } } unset($row);
                     return ['login'=>$updated,'message'=>'Konto aktualisiert.'];
+                case 'unlinkGoogle':
+                    if (!is_string($u['passwordHash']) || !self::verifyCurrent($in,$u)) { throw new Problem(403,'Zum Trennen zuerst ein lokales Passwort festlegen und bestätigen.'); }
+                    foreach ($s['users'] as &$row) { if ($row['id']===$uid) { $row['googleSub']=null; $row['googleEmail']=null; $row['sessionVersion']++; $updated=$row; } } unset($row);
+                    return ['login'=>$updated,'message'=>'Google-Verknüpfung getrennt.'];
                 case 'deleteAccount':
                     self::confirm($in);
-                    if (!self::verifyCurrent($in,$u['passwordHash'])) { throw new Problem(403,'Aktuelles Passwort ist nicht korrekt.'); }
+                    if (!self::verifyCurrent($in,$u)) { throw new Problem(403,'Bitte dein aktuelles Passwort bestätigen oder dich erneut mit Google anmelden.'); }
                     foreach ($s['lists'] as $l) { if ($l['ownerUserId']===$uid) { self::removeList($s,$l['id']); } }
                     $s['reservations']=array_values(array_filter($s['reservations'],fn($r)=>$r['userId']!==$uid));
                     $s['users']=array_values(array_filter($s['users'],fn($r)=>$r['id']!==$uid));
@@ -202,15 +206,64 @@ final class App
         });
         if ($result instanceof Problem) { throw $result; }
         if (isset($result['login'])) {
-            session_regenerate_id(true); $_SESSION['userId']=$result['login']['id']; $_SESSION['version']=$result['login']['sessionVersion']; $_SESSION['csrf']=bin2hex(random_bytes(32)); unset($result['login']);
+            self::establishSession($result['login']); unset($result['login']);
         }
         if (isset($result['logout'])) { $_SESSION=[]; session_regenerate_id(true); $_SESSION['csrf']=bin2hex(random_bytes(32)); unset($result['logout']); }
         return $result;
     }
-    private static function verifyCurrent(array $in,string $hash): bool
+    public static function establishSession(array $user): void
+    {
+        session_regenerate_id(true);
+        $_SESSION['userId']=$user['id']; $_SESSION['version']=$user['sessionVersion']; $_SESSION['csrf']=bin2hex(random_bytes(32));
+        unset($_SESSION['googleReauthenticatedUser'],$_SESSION['googleReauthenticatedSub'],$_SESSION['googleReauthenticatedAt']);
+    }
+
+    // Ausschließlich nach Prüfung des Google-ID-Tokens durch den OIDC-Callback aufrufen.
+    public function googleIdentity(array $identity,string $purpose,array $pending): array
+    {
+        $user=$this->store->transaction(function(&$s) use ($identity,$purpose,$pending) {
+            if (!$s['settings']) { throw new Problem(409,'Bitte MyWish zuerst einrichten.'); }
+            $linked=null;
+            foreach ($s['users'] as $row) { if ($row['googleSub']===$identity['sub']) { $linked=$row; } }
+            if ($purpose!=='login') {
+                $current=self::user($s);
+                if ($current['id']!==($pending['userId'] ?? null) || $current['sessionVersion']!==($pending['version'] ?? null)) { throw new Problem(403,'Deine Sitzung hat sich geändert. Bitte erneut beginnen.'); }
+                if ($purpose==='reauthenticate') {
+                    if ($current['googleSub']!==$identity['sub']) { throw new Problem(403,'Bitte dasselbe Google-Konto wie bei deiner Anmeldung verwenden.'); }
+                    return $current;
+                }
+                if ($purpose!=='link' || ($linked && $linked['id']!==$current['id']) || ($current['googleSub']!==null && $current['googleSub']!==$identity['sub'])) { throw new Problem(409,'Dieses Google-Konto kann nicht verknüpft werden.'); }
+                foreach ($s['users'] as &$row) { if ($row['id']===$current['id']) {
+                    $row['googleSub']=$identity['sub']; $row['googleEmail']=$identity['email']; $row['sessionVersion']++; $current=$row;
+                } } unset($row);
+                return $current;
+            }
+            if ($linked) {
+                foreach ($s['users'] as &$row) { if ($row['id']===$linked['id']) { $row['googleEmail']=$identity['email']; $linked=$row; } } unset($row);
+                return $linked;
+            }
+            if (($this->registrationOverride ?? $s['settings']['registration'])!=='open') { throw new Problem(403,'Die Registrierung ist geschlossen. Bestehende Konten können weiterhin angemeldet werden.'); }
+            $ip=hash('sha256',$_SERVER['REMOTE_ADDR'] ?? 'local');
+            $s['attempts']=array_values(array_filter($s['attempts'],fn($a)=>$a['at']>time()-900));
+            if (count(array_filter($s['attempts'],fn($a)=>$a['ip']===$ip && $a['kind']==='register'))>=30) { throw new Problem(429,'Zu viele Registrierungen. Bitte später erneut versuchen.'); }
+            $username=strtolower($identity['email']);
+            if (!preg_match('/^[a-z0-9][a-z0-9._@+\-]{2,119}$/D',$username)) { $username='google-'.substr(hash('sha256',$identity['sub']),0,24); }
+            foreach ($s['users'] as $row) { if ($row['username']===$username) { throw new Problem(409,'Es gibt bereits ein Konto mit dieser Kennung. Bitte mit deinem bisherigen Passwort anmelden und Google unter Mein Konto verknüpfen.'); } }
+            $user=['id'=>self::id(),'username'=>$username,'name'=>$identity['name'],'passwordHash'=>null,'sessionVersion'=>1,'createdAt'=>self::now(),'googleSub'=>$identity['sub'],'googleEmail'=>$identity['email']];
+            $s['users'][]=$user; $s['attempts'][]=['ip'=>$ip,'at'=>time(),'kind'=>'register']; return $user;
+        });
+        self::establishSession($user);
+        if ($purpose==='reauthenticate') {
+            $_SESSION['googleReauthenticatedUser']=$user['id']; $_SESSION['googleReauthenticatedSub']=$user['googleSub']; $_SESSION['googleReauthenticatedAt']=time();
+        }
+        return self::publicUser($user);
+    }
+
+    public static function verifyCurrent(array $in,array $user): bool
     {
         $pass=$in['currentPassword'] ?? null;
-        return is_string($pass) && strlen($pass)<=72 && password_verify($pass,$hash);
+        if (is_string($user['passwordHash'])) { return is_string($pass) && strlen($pass)<=72 && password_verify($pass,$user['passwordHash']); }
+        return ($_SESSION['googleReauthenticatedUser'] ?? null)===$user['id'] && ($_SESSION['googleReauthenticatedSub'] ?? null)===$user['googleSub'] && ($_SESSION['googleReauthenticatedAt'] ?? 0)>time()-300;
     }
     private static function confirm(array $in): void { if (($in['confirm'] ?? '')!=='yes') { throw new Problem(422,'Bitte die Löschung ausdrücklich bestätigen.'); } }
     private static function upsert(array &$rows,array $new): void { foreach ($rows as &$row) { if ($row['id']===$new['id']) { $row=$new; return; } } unset($row); $rows[]=$new; }

@@ -41,6 +41,6 @@ try {
         check($store->transaction(fn(&$s)=>count($s['attempts']))===21,'20 concurrent writes: no loss');
     }
     file_put_contents($dir.'/state.php',Store::GUARD.'{"broken":'); rejects(fn()=>$store->transaction(fn(&$s)=>$s),503);
-    file_put_contents($dir.'/state.php',Store::GUARD.json_encode(array_replace(Store::empty(),['schemaVersion'=>2]))); rejects(fn()=>$store->transaction(fn(&$s)=>$s),503);
+    file_put_contents($dir.'/state.php',Store::GUARD.json_encode(array_replace(Store::empty(),['schemaVersion'=>Store::VERSION+1]))); rejects(fn()=>$store->transaction(fn(&$s)=>$s),503);
     echo "OK: $checks unit/storage/security checks\n";
 } finally { foreach (glob($dir.'/*') as $file) { unlink($file); } rmdir($dir); }

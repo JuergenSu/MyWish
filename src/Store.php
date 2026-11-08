@@ -10,7 +10,7 @@ final class Problem extends \RuntimeException
 final class Store
 {
     public const GUARD = "<?php http_response_code(404); exit; __halt_compiler();\n";
-    public const VERSION = 1;
+    public const VERSION = 2;
     public function __construct(private string $directory)
     {
         if (!is_dir($directory) || !is_writable($directory)) {
@@ -27,29 +27,19 @@ final class Store
         if (!$lock || !flock($lock, LOCK_EX)) { throw new Problem(503, 'Die Datenspeicherung ist gerade nicht verfügbar. Bitte erneut versuchen.'); }
         try {
             $file = $this->directory.'/state.php';
-            $state = is_file($file) ? self::decode((string)file_get_contents($file)) : self::empty();
-            $before = $state;
-            $result = $callback($state);
-            if ($before !== $state) {
+            $raw=is_file($file) ? (string)file_get_contents($file) : null;
+            $state=$raw!==null ? self::decode($raw) : self::empty();
+            $before=$state;
+            if ($state['schemaVersion']===1) {
+                // Backup muss vollständig geschrieben sein, bevor Migration/Änderung erfolgt.
+                $this->write($this->directory.'/backup-schema-1-'.gmdate('Ymd-His').'-'.bin2hex(random_bytes(6)).'.php',$raw);
+                foreach ($state['users'] as &$user) { $user['googleSub']=null; $user['googleEmail']=null; } unset($user);
+                $state['schemaVersion']=self::VERSION;
+            }
+            $result=$callback($state);
+            if ($before!==$state) {
                 self::validate($state);
-                $data = self::GUARD.json_encode($state, JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT);
-                $temp = $this->directory.'/tmp-'.bin2hex(random_bytes(12)).'.php';
-                try {
-                    $out = @fopen($temp, 'xb');
-                    if (!$out) { throw new \RuntimeException('write'); }
-                    @chmod($temp, 0600);
-                    try {
-                        $offset = 0;
-                        while ($offset < strlen($data)) {
-                            $written = fwrite($out, substr($data, $offset));
-                            if (!$written) { throw new \RuntimeException('write'); }
-                            $offset += $written;
-                        }
-                        if (!fflush($out) || (function_exists('fsync') && !fsync($out))) { throw new \RuntimeException('flush'); }
-                    } finally { fclose($out); }
-                    if (!@rename($temp, $file)) { throw new \RuntimeException('rename'); }
-                } catch (\Throwable $e) { throw new Problem(503, 'Speichern fehlgeschlagen. Die bisherigen Daten bleiben erhalten. Bitte Speicherplatz und Dateirechte prüfen.'); }
-                finally { if (is_file($temp)) { @unlink($temp); } }
+                $this->write($file,self::GUARD.json_encode($state,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT));
             }
             return $result;
         } finally { flock($lock, LOCK_UN); fclose($lock); }
@@ -65,7 +55,7 @@ final class Store
     }
     public static function validate(array $s): void
     {
-        if (($s['schemaVersion'] ?? null) !== self::VERSION) { throw new Problem(503, 'Unbekannte Datenversion. Bitte passende MyWish-Version verwenden; Daten nicht überschreiben.'); }
+        if (!in_array($s['schemaVersion'] ?? null, [1,self::VERSION], true)) { throw new Problem(503, 'Unbekannte Datenversion. Bitte passende MyWish-Version verwenden; Daten nicht überschreiben.'); }
         foreach (['users','lists','wishes','reservations','attempts'] as $key) {
             if (!isset($s[$key]) || !is_array($s[$key]) || !array_is_list($s[$key])) { throw new Problem(503, 'Ungültige Datenstruktur.'); }
         }
@@ -77,7 +67,7 @@ final class Store
             if (!in_array($s['settings']['registration'], ['open','closed'], true)) { throw new Problem(503, 'Ungültiger Registrierungsmodus.'); }
         } elseif ($s['users'] || $s['lists'] || $s['wishes'] || $s['reservations']) { throw new Problem(503, 'Unvollständige Einrichtung.'); }
         $shapes = [
-            'users'=>['id','username','name','passwordHash','sessionVersion','createdAt'],
+            'users'=>array_merge(['id','username','name','passwordHash','sessionVersion','createdAt'], $s['schemaVersion']===1 ? [] : ['googleSub','googleEmail']),
             'lists'=>['id','ownerUserId','name','description','occasion','eventDate','cover','image','createdAt','updatedAt'],
             'wishes'=>['id','listId','title','description','priceCents','currency','productUrl','quantity','image','createdAt','updatedAt'],
             'reservations'=>['id','wishId','userId','createdAt'],
@@ -100,11 +90,19 @@ final class Store
                 }
             }
         }
-        $names=[];
+        $names=[]; $googleSubjects=[];
         foreach ($s['users'] as $u) {
             self::string($u['name'],100,true); self::string($u['username'],120,true);
             if (!preg_match('/^[a-z0-9][a-z0-9._@+\-]{2,119}$/D',$u['username']) || isset($names[$u['username']]) || !is_int($u['sessionVersion']) || $u['sessionVersion']<1) { throw new Problem(503, 'Ungültiges Benutzerkonto.'); }
             $names[$u['username']]=true;
+            if ($s['schemaVersion']===self::VERSION) {
+                $sub=$u['googleSub']; $email=$u['googleEmail'];
+                if ($sub!==null) {
+                    if (!is_string($sub) || !preg_match('/^[a-zA-Z0-9_-]{1,255}$/D',$sub) || isset($googleSubjects[$sub]) || !is_string($email) || strlen($email)>254 || !filter_var($email,FILTER_VALIDATE_EMAIL)) { throw new Problem(503,'Ungültige Google-Kontoverknüpfung.'); }
+                    $googleSubjects[$sub]=true;
+                } elseif ($email!==null || $u['passwordHash']===null) { throw new Problem(503,'Das Konto hat keine gültige Anmeldemethode.'); }
+            }
+
         }
         foreach ($s['lists'] as $l) {
             self::string($l['name'],160,true); self::string($l['description'],4000);
@@ -130,7 +128,7 @@ final class Store
             }
         }
         foreach ($s['users'] as $u) {
-            if (!is_string($u['passwordHash'] ?? null) || !(password_get_info($u['passwordHash'])['algo'] ?? null) || !isset($u['username'], $u['name'], $u['sessionVersion'])) { throw new Problem(503, 'Ungültiges Benutzerkonto.'); }
+            if (!(($s['schemaVersion']===self::VERSION && $u['passwordHash']===null && $u['googleSub']!==null) || (is_string($u['passwordHash'] ?? null) && (password_get_info($u['passwordHash'])['algo'] ?? null))) || !isset($u['username'], $u['name'], $u['sessionVersion'])) { throw new Problem(503, 'Ungültiges Benutzerkonto.'); }
         }
         foreach ($s['lists'] as $l) { if (!isset($ids['users'][$l['ownerUserId'] ?? '']) || !isset($l['name'])) { throw new Problem(503, 'Ungültige Listenreferenz.'); } }
         foreach ($s['wishes'] as $w) { if (!isset($ids['lists'][$w['listId'] ?? '']) || !is_int($w['quantity'] ?? null) || $w['quantity'] < 1 || $w['quantity'] > 99) { throw new Problem(503, 'Ungültige Wunschreferenz.'); } }
@@ -144,10 +142,31 @@ final class Store
             $pairs[$pair] = true;
         }
     }
+    private function write(string $file,string $data): void
+    {
+        $temp=$this->directory.'/tmp-'.bin2hex(random_bytes(12)).'.php';
+        try {
+            $out=@fopen($temp,'xb');
+            if (!$out) { throw new \RuntimeException('write'); }
+            @chmod($temp,0600);
+            try {
+                $offset=0;
+                while ($offset<strlen($data)) {
+                    $written=fwrite($out,substr($data,$offset));
+                    if (!$written) { throw new \RuntimeException('write'); }
+                    $offset+=$written;
+                }
+                if (!fflush($out) || (function_exists('fsync') && !fsync($out))) { throw new \RuntimeException('flush'); }
+            } finally { fclose($out); }
+            if (!@rename($temp,$file)) { throw new \RuntimeException('rename'); }
+        } catch (\Throwable) { throw new Problem(503,'Speichern oder Migrationsbackup fehlgeschlagen. Die bisherigen Daten bleiben erhalten. Bitte Speicherplatz und Dateirechte prüfen.'); }
+        finally { if (is_file($temp)) { @unlink($temp); } }
+    }
+
     private static function keys(array $row,array $expected): void
     {
         $keys=array_keys($row); sort($keys); sort($expected);
-        if ($keys!==$expected) { throw new Problem(503,'Die Datendatei entspricht nicht dem V1-Schema.'); }
+        if ($keys!==$expected) { throw new Problem(503,'Die Datendatei entspricht nicht dem unterstützten Schema.'); }
     }
     private static function string(mixed $value,int $max,bool $required=false): void
     {
