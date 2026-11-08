@@ -6,8 +6,9 @@ Eine kleine, selbst gehostete Wunschwelt für Freunde und Familie. PHP 8.2+, HTM
 
 - Browser-Erstinstallation, Registrierung, Login, Abmelden, eigenes Konto und Passwort ändern, Konto löschen. Optional [mit Google anmelden](docs/GOOGLE_LOGIN.md), einschließlich ausdrücklicher Kontoverknüpfung.
 - Neue Passwörter: mindestens 8 Zeichen, maximal 72 UTF-8-Bytes. Sonderzeichen sind optional. Bestehende Passwörter bleiben gültig.
+- Jede Liste hat einen **Teilen**-Knopf mit öffentlichem Link auf Basis ihrer zufälligen ID. Empfänger sehen nur diese Liste ohne Anmeldung; zum Reservieren führt der Link zur Anmeldung und danach zurück. Auf Handys wird die native Teilen-Funktion genutzt, sonst der Link kopiert.
 - Alle angemeldeten Nutzer sehen alle Listen. Genau ein Eigentümer bearbeitet eine Liste und ihre Wünsche. Andere Nutzer können eine Einheit pro Wunsch reservieren und ihre Reservierung wieder freigeben.
-- Der Eigentümer erhält **keine Reservierungsinformationen**, weder in HTML noch in JSON. Es gibt keine Adminrolle, privaten Listen, Kinderprofile oder Freigabelinks. Maßgeblich ist [Epic #3](https://github.com/JuergenSu/MyWish/issues/3); ältere Rollen-/Sharing-Anforderungen einzelner Tickets werden dadurch ersetzt.
+- Der Eigentümer erhält **keine Reservierungsinformationen**, weder in HTML noch in JSON. Es gibt keine Adminrolle, privaten Listen oder Kinderprofile. Das V1-Grundmodell aus [Epic #3](https://github.com/JuergenSu/MyWish/issues/3) wird um öffentliche Teilen-Links ergänzt.
 - Listen mit Anlass, Datum, Beschreibung und Cover; Wünsche mit optionalem Shoplink, Bild, EUR-Preis und Menge (1–99).
 - Optionaler Produktimport mit Vorschau (OpenGraph, Twitter Cards, JSON-LD, Produktgalerien und Amazon.de-Produktfelder). Eingaben prüfen und explizit speichern; ein manueller Wunsch funktioniert immer.
 - Meine Reservierungen, Suche über Listen/Anzeigenamen, mobile Oberfläche und Formulare ohne JavaScript.
@@ -37,13 +38,13 @@ Die direkte ASIN-Bildadresse liefert nicht für jeden Artikel ein Produktbild. A
 
 Shopseiten dürfen bis **12 MB nach Dekomprimierung** groß sein (zuvor 4 MB); einzelne Bilder weiterhin bis 2 MB. Einzelne Skriptblöcke über 2 MB werden vor der HTML-Auswertung übersprungen, damit spätere Produktdaten lesbar bleiben. Es werden keine Skripte ausgeführt und keine zusätzlichen Suchdienste benötigt. Shops, die ihre Produktdaten erst nach JavaScript-Ausführung liefern oder den Abruf mit Captcha/403/503 blockieren, können weiterhin manuelle Ergänzungen erfordern. Eine größere Größenfreigabe umgeht solche Sperren nicht.
 
-Wenn beim Wunsch kein Bild vorhanden ist, öffnet **Bei Google nach einem Bild suchen** einen neuen Tab mit Produktname und gegebenenfalls Amazon-Artikelnummer. Die Suche startet nur durch deinen Klick. Kopiere beim gewünschten Bild die direkte Bildadresse, füge sie in **Bildadresse** ein und wähle **Bild übernehmen**. Prüfe die Vorschau und speichere danach den Wunsch.
+Die manuelle Google-Bildersuche ist entfernt. Eine bekannte direkte Bildadresse lässt sich weiterhin über **Bildadresse → Bild übernehmen** laden. Die optionale OpenAI-Bildsuche bleibt verfügbar.
 
-Die Bilddatei wird serverseitig geprüft und lokal gespeichert; kein externes Hotlinking. Erlaubt sind JPEG/PNG/WebP bis 2 MB und 16 Megapixel. Private Netzwerkadressen, aktive Inhalte und unsichere Dateiprotokolle sind gesperrt. Alternativ bleibt der Datei-Upload verfügbar. Diese manuelle Google-Suche benötigt keinen API-Key und keine Google-Login-Konfiguration.
+**Eigene Bilder und Handy-Screenshots:** JPEG, PNG und WebP bis **8 MB**, 6000 Pixel pro Seite und 16 Megapixel. Neue Uploads und importierte Bilder werden mit GD serverseitig ohne Zuschnitt auf höchstens **1200 Pixel an der längsten Seite** verkleinert; kleine Bilder werden nicht vergrößert. PNG-Transparenz und die EXIF-Ausrichtung von Handy-JPEGs bleiben erhalten. Nur die Vorschau wird gespeichert, das Original verworfen. Bei besonders großen PNG-Vorschauen wird WebP verwendet, damit die bestehende Speichergrenze von 2 MB je Bild eingehalten wird. Bereits gespeicherte Bilder bleiben erhalten. Für Downloads per Produkt-/Bildimport gelten weiterhin 2 MB pro Bild; private Netzwerkziele und aktive Inhalte bleiben gesperrt.
 
 ## Installation durch Kopieren
 
-1. PHP **8.2 oder neuer** aktivieren. Pflicht: JSON, Session, Filter, Hash, OpenSSL, Standardfunktionen inklusive `getimagesizefromstring`, `flock`, `rename`. Für Import zusätzlich cURL und DOM/libxml; mbstring und intl sind optional. GD/Imagick sind nicht nötig.
+1. PHP **8.2 oder neuer** aktivieren. Pflicht: JSON, Session, Filter, Hash, OpenSSL, Standardfunktionen inklusive `getimagesizefromstring`, `flock`, `rename`. Für Import zusätzlich cURL und DOM/libxml; mbstring und intl sind optional. Für neue Bilder muss **GD mit JPEG-, PNG- und WebP-Unterstützung** aktiviert sein; Imagick ist nicht nötig. Ohne GD bleiben vorhandene Bilder lesbar, neue Uploads melden den fehlenden Hosting-Baustein.
 2. Anwendung in einen frischen Webordner kopieren, z. B. `/` oder `/mywish/`. Entwicklungsordner `.git`, `tests`, `.github` und `docs` müssen nicht hochgeladen werden. `src`, `assets`, `auth` und `vendor` gehören zur Anwendung.
 3. PHP muss `storage/` lesen/schreiben können. Möglichst nur dem PHP-Benutzer Rechte geben (Ordner 0700 bzw. passende Gruppenrechte; niemals pauschal 0777). Lokales Dateisystem mit funktionierendem `flock`/atomarem `rename` nutzen, kein ungetestetes NFS.
 4. **Empfohlen:** Daten außerhalb des öffentlichen Webroots speichern. `config.example.php` nach `config.php` kopieren und `storage` auf einen vorhandenen, beschreibbaren Ordner außerhalb des Webroots setzen. Ohne eigene Konfiguration liegt Storage in `storage/`; die Dateien tragen einen PHP-Abbruchschutz, zusätzlich schützt dort `.htaccess`.
@@ -56,7 +57,7 @@ Keine Rewrite-Regeln nötig. Der Basis-Pfad wird aus dem ausgeführten PHP-Skrip
 
 ### PHP-Einstellungen
 
-- `file_uploads=On`, `upload_max_filesize=2M`, `post_max_size=4M` oder größer. Die App begrenzt einzelne Bilder zusätzlich auf 2 MB, 6000 px pro Seite und 16 Megapixel.
+- `file_uploads=On`, **`upload_max_filesize=8M`**, **`post_max_size=10M`** oder größer. Die mitgelieferte `.user.ini` setzt diese Werte bei CGI/FPM-Hostern, sofern der Hoster sie zulässt; andernfalls im Hosting-Panel ändern. PHP-Konfigurationscaches können Änderungen verzögert übernehmen. Die App begrenzt einzelne Uploads auf 8 MB und ganze Anfragen auf 10 MB. Größere Bilder werden auf 1200 Pixel verkleinert; 6000 px pro Quellseite und 16 Megapixel begrenzen den Dekodieraufwand.
 - Funktionierender, nicht öffentlich erreichbarer PHP-Session-Speicher. Sessions laufen nach 2 Stunden Inaktivität ab. Cookie: HttpOnly, SameSite=Lax, bei HTTPS Secure.
 - `display_errors=Off`; technische Fehlerantworten enthalten keine Stacktraces. Serverlogs schützen. `memory_limit` passend zum Datenvolumen wählen (z. B. 128M oder mehr).
 - Ausgehendes Netz ist optional. cURL-Import nutzt direkte, DNS-gepinnte öffentliche IPv4-Verbindungen; wenn der Hoster das blockiert, manuell erfassen. Es gibt keine externen Browser-Tracker, CDNs oder Hotlink-Bilder.
@@ -65,7 +66,7 @@ Keine Rewrite-Regeln nötig. Der Basis-Pfad wird aus dem ausgeführten PHP-Skrip
 
 Apache: Standard-PHP-Hosting genügt. `.htaccess` schützt Storage zusätzlich, ist aber keine Voraussetzung des Dateischutzes. Optional auch `/src/`, `/tools/` und `/tests/` sperren bzw. nicht deployen (außer `src`).
 
-Nginx: PHP-FPM für vorhandene `.php`-Dateien konfigurieren (`try_files $uri =404`, korrekter `SCRIPT_FILENAME`). Den angepassten Speicherpfad zusätzlich sperren, z. B. bei Unterordnerbetrieb:
+Nginx: PHP-FPM für vorhandene `.php`-Dateien konfigurieren (`try_files $uri =404`, korrekter `SCRIPT_FILENAME`). Für Uploads `client_max_body_size 10m;` im passenden Server-/Location-Block erlauben. Den angepassten Speicherpfad zusätzlich sperren, z. B. bei Unterordnerbetrieb:
 
 ```nginx
 location ^~ /mywish/storage/ { deny all; }
@@ -95,7 +96,7 @@ Registrierungsmodus ändern: In `config.php` `'registration' => 'open'` oder `'c
 - Reservieren bedeutet **keinen Kauf**. Eine Person reserviert höchstens eine Einheit desselben Wunsches. Bei Menge 3 können drei verschiedene Nutzer reservieren.
 - Listen-/Wunschlöschung entfernt zugehörige Reservierungen immer atomar. Mengenänderungen setzen **alle** Reservierungen dieses Wunsches zurück; die Regel gilt unabhängig davon, ob welche existieren. Eigentümer erhalten dadurch keine Statushinweise. Titel-/Preisänderungen behalten Reservierungen bei.
 - Der Überraschungsschutz gilt für das Eigentümerkonto. Absichtliche Zweitkonten können bei offener Registrierung fremde Ansichten verwenden. Gegenüber dem Serverbetreiber ist Speicherung nicht anonym.
-- Alle Listen sind für jedes angemeldete Konto sichtbar. Deshalb nur in einer vertrauenswürdigen Gruppe betreiben; keine vertraulichen Gesundheits-/Adressdaten eintragen.
+- Alle Listen sind für jedes angemeldete Konto und über ihren jeweiligen Teilen-Link sichtbar. Wer einen Link erhält, kann ihn weitergeben. Es gibt keinen gesonderten Freigabeschalter; Löschen der Liste macht den Link ungültig. Deshalb nur in einer vertrauenswürdigen Gruppe betreiben; keine vertraulichen Gesundheits-/Adressdaten eintragen.
 - Amazon.de: Produkt-Titel, sichtbare Produktmerkmale, aktueller Preis und Hauptbild werden gezielt ausgelesen; Streich-/Empfehlungspreise und Platzhalterbilder bleiben außen vor. Tracking-/Mobil-Links mit ASIN werden vereinheitlicht. Bei 503, Captcha oder fehlenden Daten erscheint eine klare manuelle Vorschau statt einer vermeintlich erfolgreichen Übernahme. Bereits ausgefüllte Felder bleiben erhalten, Bilder eines vorherigen Imports werden nicht übernommen.
 - Import ist Best-Effort, keine Preis- oder Verfügbarkeitsgarantie. Manche Shops blockieren automatisches Abrufen. V1 importiert nur öffentliche IPv4-Ziele auf Port 80/443; keine privaten Netze, SVGs oder aktiven Inhalte. Bilder werden lokal geprüft und gespeichert, nicht extern im Browser geladen.
 - Kleine private Installation: Ein JSON-State inklusive Base64-Bilder wird pro Anfrage geladen/validiert; keine Zusage für große Communities oder riesige Bildbestände.

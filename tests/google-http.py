@@ -86,8 +86,11 @@ with tempfile.TemporaryDirectory(prefix='mywish-google-http-') as temp:
    owner.start('link',password='wrong',status=403)
    pending=owner.start('link',password='Localpass!12');owner.callback(pending,'google-local','existing@example.com')
    check(owner.api('state')['user']['id']==local_id,'Explicit link preserves original account')
+   shared_id=owner.api('state')['lists'][0]['id']
    owner.api('logout',{})
-   pending=guest.start();guest.callback(pending,'google-local','existing@example.com')
+   guest.request('index.php?page=login&returnList='+shared_id)
+   pending=guest.start();target=guest.callback(pending,'google-local','existing@example.com')
+   check(target.endswith('index.php?page=list&id='+shared_id),'Google login returns to the shared list')
    data=guest.api('state');check(data['user']['id']==local_id and len(data['lists'])==1,'Google login retains existing lists')
    check('googleSub' not in json.dumps(data) and 'passwordHash' not in json.dumps(data),'No provider subject or password hash in public snapshot')
    guest.api('logout',{})

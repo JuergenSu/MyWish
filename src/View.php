@@ -15,6 +15,7 @@ function icon(string $name): string
         'edit'=>'<path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14v6Z"/>',
         'spark'=>'<path d="m12 3 2.7 6.3L21 12l-6.3 2.7L12 21l-2.7-6.3L3 12l6.3-2.7L12 3Z"/>',
         'external'=>'<path d="M14 3h7v7m0-7L10 14M10 3H4a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-6"/>',
+        'share'=>'<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4m-6.8 7 6.8 4"/>',
         'calendar'=>'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 11h18"/>',
     ];
     return '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'.($paths[$name] ?? $paths['gift']).'</svg>';
@@ -30,24 +31,25 @@ function field(string $name,string $label,mixed $value='',string $type='text',bo
     return '<label>'.e($label).'<input name="'.e($name).'" type="'.e($type).'" value="'.e(is_scalar($value) ? $value : '').'"'.($required ? ' required' : '').$extra.($autocomplete ? ' autocomplete="'.e($autocomplete).'"' : '').($name==='price' ? ' inputmode="decimal"' : '').'></label>';
 }
 function textarea(string $name,string $label,mixed $value): string { return '<label>'.e($label).'<textarea name="'.e($name).'" rows="4" maxlength="4000">'.e(is_scalar($value) ? $value : '').'</textarea></label>'; }
-function imageField(bool $hasImage): string { return '<label>Eigenes Bild (optional)<input type="file" name="image" accept="image/jpeg,image/png,image/webp"></label><p class="field-help">JPEG, PNG oder WebP · max. 2 MB und 16 Megapixel. Bilder werden geschützt gespeichert.</p>'.($hasImage ? '<label class="check"><input type="checkbox" name="removeImage" value="yes">Vorhandenes Bild entfernen</label>' : ''); }
-function media(string $type,string $id): string { global $base; return $base.'/media.php?type='.$type.'&id='.$id; }
+function imageField(bool $hasImage): string { return '<label>Eigenes Bild (optional)<input type="file" name="image" accept="image/jpeg,image/png,image/webp"></label><p class="field-help">JPEG, PNG oder WebP · max. 8 MB und 16 Megapixel. PNG-Screenshots sind erlaubt. Bilder werden auf maximal 1200 Pixel verkleinert und geschützt gespeichert.</p>'.($hasImage ? '<label class="check"><input type="checkbox" name="removeImage" value="yes">Vorhandenes Bild entfernen</label>' : ''); }
+function media(string $type,string $id): string { global $base,$sharedMediaId; return $base.'/media.php?type='.$type.'&id='.$id.(!empty($sharedMediaId) ? '&share='.$sharedMediaId : ''); }
 function imageSourceLink(string $source): string { return $source==='' ? '' : '<p class="field-help">Bildvorschlag · <a href="'.e($source).'" target="_blank" rel="noopener noreferrer">Bildquelle<span class="sr-only"> (öffnet neuen Tab)</span></a></p>'; }
 function initials(string $name): string { return function_exists('mb_substr') ? mb_strtoupper(mb_substr($name,0,1)) : strtoupper(substr($name,0,1)); }
 function dateDE(string $date): string { return substr($date,8,2).'.'.substr($date,5,2).'.'.substr($date,0,4); }
 function backLink(string $query,string $label): string { return '<a class="back-link" href="'.e(url($query)).'">'.icon('back').e($label).'</a>'; }
 function emptyState(string $title,string $text): string { return '<div class="empty"><span class="empty-icon">'.icon('gift').'</span><h3>'.e($title).'</h3><p>'.e($text).'</p></div>'; }
 function listCard(array $l,bool $own): void { ?>
-<article class="list-card"><a class="card-link" href="<?= e(url('page=list&id='.$l['id'])) ?>"><div class="card-cover <?= e($l['cover']) ?>"><?php if ($l['image']): ?><img src="<?= e(media('lists',$l['id'])) ?>" alt="" loading="lazy"><?php else: ?><div class="cover-decoration" aria-hidden="true"><?= icon($l['occasion']==='Hochzeit' ? 'heart' : 'gift') ?><span class="decor-star">✦</span><span class="decor-dot">·</span></div><?php endif ?><span class="pill"><?= e($l['occasion']) ?></span></div><div class="card-body"><div class="card-person"><span class="avatar tiny"><?= e(initials($l['ownerName'])) ?></span><?= $own ? 'Für mich' : e($l['ownerName']) ?></div><h3><?= e($l['name']) ?></h3><div class="card-meta"><span><?= $l['eventDate'] ? icon('calendar').' '.e(dateDE($l['eventDate'])) : 'Für kleine & große Momente' ?></span><span><?= $l['wishCount'] ?> Wünsche</span></div></div></a><?= imageSourceLink($l['imageSourceUrl'] ?? '') ?></article>
+<article class="list-card"><a class="card-link" href="<?= e(url('page=list&id='.$l['id'])) ?>"><div class="card-cover <?= e($l['cover']) ?>"><?php if ($l['image']): ?><img src="<?= e(media('lists',$l['id'])) ?>" alt="" loading="lazy"><?php else: ?><div class="cover-decoration" aria-hidden="true"><?= icon($l['occasion']==='Hochzeit' ? 'heart' : 'gift') ?><span class="decor-star">✦</span><span class="decor-dot">·</span></div><?php endif ?><span class="pill"><?= e($l['occasion']) ?></span></div><div class="card-body"><div class="card-person"><span class="avatar tiny"><?= e(initials($l['ownerName'])) ?></span><?= $own ? 'Für mich' : e($l['ownerName']) ?></div><h3><?= e($l['name']) ?></h3><div class="card-meta"><span><?= $l['eventDate'] ? icon('calendar').' '.e(dateDE($l['eventDate'])) : 'Für kleine & große Momente' ?></span><span><?= $l['wishCount'] ?> Wünsche</span></div></div></a><?= imageSourceLink($l['imageSourceUrl'] ?? '') ?><div class="list-share"><?= shareControl($l) ?></div></article>
 <?php }
-function wishCard(array $w,array $l,bool $own,bool $reservationPage=false): void { ?>
+function wishCard(array $w,array $l,bool $own,bool $reservationPage=false,bool $guest=false): void { ?>
 <article class="wish-card" data-wish-id="<?= e($w['id']) ?>" data-quantity="<?= $w['quantity'] ?>"><div class="wish-image <?= e($l['cover']) ?>"><?php if ($w['image']): ?><img class="wish-image-backdrop" src="<?= e(media('wishes',$w['id'])) ?>" alt="" aria-hidden="true" loading="lazy" decoding="async"><img class="wish-image-main" src="<?= e(media('wishes',$w['id'])) ?>" alt="<?= e($w['title']) ?>" loading="lazy" decoding="async"><?php else: ?><span class="wish-placeholder" aria-hidden="true"><?= icon('gift') ?></span><?php endif ?><?php if ($w['quantity']>1): ?><span class="quantity"><?= $w['quantity'] ?> Stück gewünscht</span><?php endif ?></div><div class="wish-body">
 <?php if ($reservationPage): ?><a class="wish-list-link" href="<?= e(url('page=list&id='.$l['id'])) ?>"><?= e($l['ownerName']) ?> · <?= e($l['name']) ?></a><?php endif ?>
 <?= imageSourceLink($w['imageSourceUrl'] ?? '') ?><h3><?= e($w['title']) ?></h3><p class="price"><?= $w['priceCents']===null ? 'Ein Herzenswunsch' : e(number_format($w['priceCents']/100,2,',','.')).' €' ?></p>
 <?php if ($w['description']): ?><p class="wish-description"><?= nl2br(e($w['description'])) ?></p><?php endif ?>
 <?php if ($w['productUrl']): ?><a class="shop-link" href="<?= e($w['productUrl']) ?>" target="_blank" rel="noopener noreferrer">Zum Produkt <?= icon('external') ?><span class="sr-only"> (öffnet neuen Tab)</span></a><?php endif ?>
 <div class="wish-actions" aria-live="polite">
-<?php if ($own): ?><a class="button secondary full" href="<?= e(url('page=wish&id='.$w['id'])) ?>"><?= icon('edit') ?>Wunsch bearbeiten</a>
+<?php if ($guest): ?><p class="field-help">Zum Reservieren bitte anmelden.</p><a class="button primary full" href="<?= e(url('page=login&returnList='.$l['id'])) ?>"><?= icon('heart') ?>Für mich reservieren</a>
+<?php elseif ($own): ?><a class="button secondary full" href="<?= e(url('page=wish&id='.$w['id'])) ?>"><?= icon('edit') ?>Wunsch bearbeiten</a>
 <?php else: ?><p class="availability <?= $w['reservedByMe'] ? 'mine' : ($w['available']>0 ? 'free' : 'taken') ?>"><?= icon($w['reservedByMe'] ? 'check' : 'gift') ?><?= $w['reservedByMe'] ? 'Eine Einheit für dich reserviert' : ($w['available']>0 ? ($w['quantity']>1 ? $w['available'].' von '.$w['quantity'].' verfügbar' : 'Noch zu haben') : 'Bereits reserviert') ?></p>
 <?php if ($w['reservedByMe'] || $w['available']>0): ?><form method="post" class="reservation-form" data-api="<?= e($GLOBALS['base']) ?>/api/index.php"><?= csrf() ?><?= hidden('action',$w['reservedByMe'] ? 'unreserve' : 'reserve') ?><?= hidden('id',$w['id']) ?><?= hidden('returnPage',$reservationPage ? 'reservations' : 'list') ?><button class="button <?= $w['reservedByMe'] ? 'secondary' : 'primary' ?> full"><?= icon($w['reservedByMe'] ? 'check' : 'heart') ?><?= $w['reservedByMe'] ? 'Reservierung freigeben' : ($w['quantity']>1 ? 'Eine Einheit reservieren' : 'Für mich reservieren') ?></button></form><?php else: ?><button class="button secondary full" disabled>Schon verplant</button><?php endif ?><?php endif ?>
 </div></div></article>
@@ -57,4 +59,12 @@ function googleButton(string $purpose,string $label): string
 {
     global $base;
     return '<form method="post" action="'.e($base.'/auth/google/start.php').'" class="google-form">'.csrf().hidden('purpose',$purpose).'<button type="submit" class="button google-button full"><img src="'.e($base).'/assets/google-g.svg" alt="" width="20" height="20">'.e($label).'</button></form>';
+}
+
+function shareControl(array $list): string
+{
+    $link=url('page=share&id='.$list['id']);
+    $host=$_SERVER['HTTP_HOST'] ?? '';
+    if (preg_match('/^[a-z0-9.\-]+(?::[0-9]{1,5})?$/iD',$host)) { $link=(!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS']!=='off' ? 'https://' : 'http://').$host.$link; }
+    return '<details class="share-control"><summary class="button secondary">'.icon('share').'Teilen<span class="sr-only">: '.e($list['name']).'</span></summary><div class="share-panel"><label>Öffentlicher Link<input class="share-url" type="text" readonly value="'.e($link).'" aria-label="Öffentlicher Link für '.e($list['name']).'"></label><div class="share-buttons"><button type="button" class="button primary" data-share-button data-share-title="'.e($list['name']).'" hidden>Link teilen</button><a class="button secondary" href="'.e($link).'">Liste öffnen</a></div><p class="field-help">Jeder mit diesem Link kann die Liste ohne Anmeldung ansehen. Zum Reservieren ist ein Konto nötig.</p><p class="share-feedback field-help" role="status" hidden></p></div></details>';
 }

@@ -6,7 +6,10 @@ use MyWish\Metadata;
 
 function input(): array
 {
-    if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0)>4*1024*1024) { throw new Problem(413,'Die Anfrage ist zu groß (maximal 4 MB).'); }
+    $length=(int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+    if ($length>10*1024*1024) { throw new Problem(413,'Die Anfrage ist zu groß (maximal 10 MB, Bilder maximal 8 MB).'); }
+    $serverLimit=ini_parse_quantity(ini_get('post_max_size'));
+    if ($serverLimit>0 && $length>$serverLimit) { throw new Problem(413,'Das PHP-Uploadlimit ist zu klein. Bitte post_max_size=10M und upload_max_filesize=8M beim Webhoster einstellen.'); }
     if (str_contains($_SERVER['CONTENT_TYPE'] ?? '', 'application/json')) {
         $raw=file_get_contents('php://input');
         try { $data=json_decode($raw,true,32,JSON_THROW_ON_ERROR); }
@@ -50,4 +53,16 @@ function safeError(Throwable $e): array
     // Keine Eingaben, Tokens, Pfade oder Stacktraces protokollieren.
     error_log('MyWish: internal failure ('.get_class($e).')');
     return [500,'Ein technischer Fehler ist aufgetreten. Bitte erneut versuchen; bei Wiederholung den Betreiber kontaktieren.'];
+}
+
+// Nur eine Listen-ID als Rücksprungziel zulassen, niemals fremde URLs.
+function returnListId(mixed $value): string
+{
+    return is_string($value) && preg_match('/^[a-f0-9]{32}$/D',$value) ? $value : '';
+}
+function afterLoginQuery(): string
+{
+    $id=returnListId($_SESSION['returnListId'] ?? '');
+    unset($_SESSION['returnListId']);
+    return $id!=='' ? 'page=list&id='.$id : '';
 }

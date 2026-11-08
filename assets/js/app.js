@@ -118,44 +118,6 @@ document.querySelectorAll("form").forEach((form) => {
   });
 });
 
-// Die externe Suche startet erst beim bewussten Klick, nicht beim Tippen.
-const imageSearch = document.getElementById("google-image-search");
-if (imageSearch) {
-  const form = imageSearch.closest("form");
-  const updateImageSearch = () => {
-    let query = form.elements.title.value.trim();
-    try {
-      const product = new URL(form.elements.productUrl.value);
-      if (
-        [
-          "amazon.de",
-          "www.amazon.de",
-          "m.amazon.de",
-          "smile.amazon.de",
-        ].includes(product.hostname.toLowerCase())
-      ) {
-        const asin = product.pathname.match(
-          /\/(?:dp|gp\/product|gp\/aw\/d)\/([a-z0-9]{10})(?:\/|$)/i,
-        );
-        if (asin) query = `${query} ${asin[1].toUpperCase()}`.trim();
-      }
-    } catch {
-      /* Ohne gültigen Shop-Link reicht der eingegebene Titel. */
-    }
-    const target = new URL(
-      query ? "https://www.google.com/search" : "https://www.google.com/imghp",
-    );
-    target.searchParams.set("hl", "de");
-    if (query) {
-      target.searchParams.set("tbm", "isch");
-      target.searchParams.set("q", query);
-    }
-    imageSearch.href = target.href;
-  };
-  form.elements.title.addEventListener("input", updateImageSearch);
-  form.elements.productUrl.addEventListener("input", updateImageSearch);
-  updateImageSearch();
-}
 // Die optionale Bildsuche läuft als zweite Anfrage, damit die Produktvorschau
 // schon während der Suche nutzbar ist. Ohne JavaScript bleibt der POST-Button.
 (() => {
@@ -282,3 +244,34 @@ if (imageSearch) {
   }
   if (form.dataset.imageAuto === "yes") search();
 })();
+
+// Native Teilen-Funktion auf Handys, sonst Zwischenablage oder manuelles Kopieren.
+document.querySelectorAll(".share-control").forEach((control) => {
+  const input = control.querySelector(".share-url");
+  const button = control.querySelector("[data-share-button]");
+  const status = control.querySelector(".share-feedback");
+  input.value = new URL(input.value, window.location.href).href;
+  button.hidden = false;
+  button.textContent = navigator.share ? "Link teilen" : "Link kopieren";
+  input.addEventListener("click", () => input.select());
+  button.addEventListener("click", async () => {
+    const data = { title: button.dataset.shareTitle, url: input.value };
+    if (navigator.share) {
+      try {
+        await navigator.share(data);
+        return;
+      } catch (error) {
+        if (error.name === "AbortError") return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(input.value);
+      status.textContent = "Link kopiert. Du kannst ihn jetzt verschicken.";
+    } catch {
+      input.focus();
+      input.select();
+      status.textContent = "Bitte den markierten Link kopieren.";
+    }
+    status.hidden = false;
+  });
+});

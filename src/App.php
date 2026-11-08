@@ -4,6 +4,8 @@ namespace MyWish;
 
 final class App
 {
+    public const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+    public const PREVIEW_EDGE = 1200;
     public const PASSWORD_HINT = 'Mindestens 8 Zeichen.';
 
     public function __construct(public Store $store, private ?string $registrationOverride = null)
@@ -103,6 +105,27 @@ final class App
                 $wishes[] = $w;
             }
             return ['installed'=>true,'siteName'=>$s['settings']['siteName'], 'user'=>self::publicUser($u), 'lists'=>$lists, 'wishes'=>$wishes];
+        });
+    }
+    // Der zufällige Listen-Link erlaubt nur die Ansicht dieser einzelnen Liste.
+    public function sharedList(string $id): array
+    {
+        if (!preg_match('/^[a-f0-9]{32}$/D',$id)) { throw new Problem(404,'Die geteilte Liste wurde nicht gefunden.'); }
+        return $this->store->transaction(function(&$s) use ($id) {
+            $list=self::find($s['lists'],$id);
+            $owner=self::find($s['users'],$list['ownerUserId']);
+            $public=array_intersect_key($list,array_flip(['id','name','description','occasion','eventDate','cover']));
+            $public['ownerName']=$owner['name'];
+            $public['image']=$list['image']!==null;
+            $wishes=[];
+            foreach ($s['wishes'] as $wish) {
+                if ($wish['listId']!==$id) { continue; }
+                $item=array_intersect_key($wish,array_flip(['id','listId','title','description','priceCents','currency','productUrl','quantity']));
+                $item['image']=$wish['image']!==null;
+                if (isset($wish['image']['sourceUrl'])) { $item['imageSourceUrl']=$wish['image']['sourceUrl']; }
+                $wishes[]=$item;
+            }
+            return ['list'=>$public,'wishes'=>$wishes];
         });
     }
     public function settings(): ?array { return $this->store->transaction(fn(&$s)=>$s['settings']===null ? null : array_replace($s['settings'], $this->registrationOverride!==null ? ['registration'=>$this->registrationOverride] : [])); }
@@ -276,15 +299,94 @@ final class App
         if (($in['useImportedImage'] ?? '')==='yes' && isset($_SESSION['importImage']) && time()-$_SESSION['importImage']['at']<1800) { $old=$_SESSION['importImage']['image']; }
         $file=$in['_image'] ?? null;
         if (!$file || ($file['error'] ?? UPLOAD_ERR_NO_FILE)===UPLOAD_ERR_NO_FILE) { return $old; }
-        if (!is_array($file) || !is_string($file['tmp_name'] ?? null) || !is_uploaded_file($file['tmp_name']) || ($file['error'] ?? 1)!==UPLOAD_ERR_OK || ($file['size'] ?? 0)>2*1024*1024) { throw new Problem(422,'Bild bitte als JPEG, PNG oder WebP mit maximal 2 MB hochladen.'); }
+        if (!is_array($file) || !is_string($file['tmp_name'] ?? null) || !is_uploaded_file($file['tmp_name']) || ($file['error'] ?? 1)!==UPLOAD_ERR_OK || ($file['size'] ?? 0)>self::MAX_UPLOAD_BYTES) { throw new Problem(422,'Bild bitte als JPEG, PNG oder WebP mit maximal 8 MB hochladen. Bei kleineren Serverlimits bitte upload_max_filesize=8M und post_max_size=10M einstellen.'); }
         $bytes=@file_get_contents($file['tmp_name']);
         return self::imageBytes($bytes ?: '');
     }
     public static function imageBytes(string $bytes): array
     {
-        if (strlen($bytes)>2*1024*1024) { throw new Problem(422,'Das Bild ist zu groß (maximal 2 MB).'); }
+        if (strlen($bytes)>self::MAX_UPLOAD_BYTES) { throw new Problem(422,'Das Bild ist zu groß (maximal 8 MB).'); }
         $info=@getimagesizefromstring($bytes);
-        if (!$info || !in_array($info['mime'],['image/jpeg','image/png','image/webp'],true) || $info[0]>6000 || $info[1]>6000 || $info[0]*$info[1]>16000000) { throw new Problem(422,'Ungültiges Bild. Erlaubt sind JPEG, PNG und WebP bis 16 Megapixel.'); }
-        return ['mime'=>$info['mime'],'data'=>base64_encode($bytes)];
+        if (!$info || !in_array($info['mime'],['image/jpeg','image/png','image/webp'],true) || $info[0]>6000 || $info[1]>6000 || $info[0]*$info[1]>16000000) { throw new Problem(422,'Ungültiges Bild. Erlaubt sind JPEG, PNG und WebP bis 16 Megapixel und 6000 Pixel pro Seite.'); }
+        if (!extension_loaded('gd')) { throw new Problem(503,'Zum Verkleinern von Bildern bitte die PHP-Erweiterung GD beim Webhoster aktivieren.'); }
+        $orientation=$info['mime']==='image/jpeg' ? self::jpegOrientation($bytes) : 1;
+        if ($orientation>=5) { [$info[0],$info[1]]=[$info[1],$info[0]]; }
+        $ratio=min(1,self::PREVIEW_EDGE/max($info[0],$info[1]));
+        $width=max(1,(int)round($info[0]*$ratio)); $height=max(1,(int)round($info[1]*$ratio));
+        // Vor dem Dekodieren genug Platz für Quellbild, Zielbild und PHP-Puffer lassen.
+        $memory=ini_get('memory_limit'); $limit=$memory==='-1' ? -1 : ini_parse_quantity($memory);
+        $needed=$info[0]*$info[1]*($orientation!==1 ? 10 : 6)+$width*$height*8+strlen($bytes)*2+16*1024*1024;
+        if ($limit>0 && memory_get_usage(true)+$needed>$limit) { throw new Problem(422,'Das Bild benötigt zu viel Arbeitsspeicher. Bitte ein kleineres Bild wählen oder memory_limit beim Webhoster erhöhen.'); }
+        $source=@imagecreatefromstring($bytes);
+        if (!$source) { throw new Problem(422,'Die Bilddatei ist beschädigt oder kann nicht gelesen werden. Bitte als PNG, JPEG oder WebP erneut exportieren.'); }
+        $target=null;
+        try {
+            // EXIF-Ausrichtung vor dem Entfernen der Metadaten in die Pixel übernehmen.
+            if (in_array($orientation,[2,5,7],true)) { imageflip($source,IMG_FLIP_HORIZONTAL); }
+            elseif ($orientation===4) { imageflip($source,IMG_FLIP_VERTICAL); }
+            $angle=match($orientation) { 3=>180,5,8=>90,6,7=>-90,default=>0 };
+            if ($angle!==0) {
+                $rotated=imagerotate($source,$angle,0);
+                if (!$rotated) { throw new Problem(422,'Das Bild konnte nicht ausgerichtet werden.'); }
+                $source=$rotated; unset($rotated);
+            }
+            $target=imagecreatetruecolor($width,$height);
+            imagealphablending($target,false); imagesavealpha($target,true);
+            imagefill($target,0,0,imagecolorallocatealpha($target,0,0,0,127));
+            if (!imagecopyresampled($target,$source,0,0,0,0,$width,$height,$info[0],$info[1])) { throw new Problem(422,'Das Bild konnte nicht verkleinert werden.'); }
+            $mime=$info['mime'];
+            $encode=static function($image,string $mime): string {
+                ob_start();
+                try {
+                    $ok=match($mime) { 'image/png'=>imagepng($image,null,6), 'image/webp'=>function_exists('imagewebp') && imagewebp($image,null,85), default=>imagejpeg($image,null,85) };
+                    $data=ob_get_contents();
+                } finally { ob_end_clean(); }
+                if (!$ok || $data==='') { throw new Problem(422,'Das Vorschaubild konnte nicht gespeichert werden.'); }
+                return $data;
+            };
+            $data=$encode($target,$mime);
+            // Auch sehr detailreiche PNG-Screenshots müssen in den bestehenden
+            // Bildspeicher (2 MB je Vorschau) passen. WebP erhält Transparenz.
+            if (strlen($data)>2*1024*1024) {
+                if (!function_exists('imagewebp')) { throw new Problem(503,'Für dieses Bild bitte GD mit WebP-Unterstützung aktivieren.'); }
+                $mime='image/webp'; $data=$encode($target,$mime);
+            }
+            if (strlen($data)>2*1024*1024) { throw new Problem(422,'Das Vorschaubild ist zu groß. Bitte ein weniger detailreiches Bild wählen.'); }
+            return ['mime'=>$mime,'data'=>base64_encode($data)];
+        } finally { unset($source,$target); }
+    }
+
+    private static function jpegOrientation(string $bytes): int
+    {
+        // Nur das kurze EXIF-IFD0-Feld lesen; keine Dateipfade oder Zusatzbibliothek.
+        $offset=2; $length=strlen($bytes);
+        while ($offset+4<=$length && $bytes[$offset]==="\xff") {
+            while ($offset<$length && $bytes[$offset]==="\xff") { $offset++; }
+            if ($offset>=$length) { break; }
+            $marker=ord($bytes[$offset++]);
+            if (in_array($marker,[0xDA,0xD9],true)) { break; }
+            if ($marker===0x01 || ($marker>=0xD0 && $marker<=0xD7)) { continue; }
+            if ($offset+2>$length) { break; }
+            $size=unpack('n',substr($bytes,$offset,2))[1];
+            if ($size<2 || $offset+$size>$length) { break; }
+            if ($marker===0xE1 && $size>=16 && substr($bytes,$offset+2,6)==="Exif\0\0") {
+                $tiff=substr($bytes,$offset+8,$size-8); $endian=substr($tiff,0,2);
+                if (!in_array($endian,['II','MM'],true)) { return 1; }
+                $short=static fn(int $at)=>$at>=0 && $at+2<=strlen($tiff) ? unpack($endian==='II' ? 'v' : 'n',substr($tiff,$at,2))[1] : null;
+                $long=static fn(int $at)=>$at>=0 && $at+4<=strlen($tiff) ? unpack($endian==='II' ? 'V' : 'N',substr($tiff,$at,4))[1] : null;
+                if ($short(2)!==42) { return 1; }
+                $ifd=$long(4); if ($ifd===null || $ifd<8 || $ifd+2>strlen($tiff)) { return 1; }
+                $count=min($short($ifd),256);
+                for ($i=0;$i<$count;$i++) {
+                    $entry=$ifd+2+$i*12; if ($entry+12>strlen($tiff)) { break; }
+                    if ($short($entry)===0x0112 && $short($entry+2)===3 && $long($entry+4)===1) {
+                        $value=$short($entry+8); return $value>=1 && $value<=8 ? $value : 1;
+                    }
+                }
+                return 1;
+            }
+            $offset+=$size;
+        }
+        return 1;
     }
 }

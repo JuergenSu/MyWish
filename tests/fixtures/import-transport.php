@@ -16,7 +16,7 @@ function curl_exec(object $c): bool
         $c->status=200; $body=str_repeat(' ',5*1024*1024).'<title>Große Shopseite</title><meta property="og:image" content="https://images.example/broken.jpg"><div class="product-gallery"><img data-src="https://images.example/recovered.png"></div>';
     }
     elseif (str_starts_with($c->url,'https://images.example/')) {
-        $c->status=str_contains($c->url,'broken.jpg') ? 404 : 200; $body=str_contains($c->url,'invalid.svg') ? '<svg></svg>' : base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6C6sAAAAASUVORK5CYII=');
+        $c->status=str_contains($c->url,'broken.jpg') ? 404 : 200; $body=str_contains($c->url,'invalid.svg') ? '<svg></svg>' : base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAADElEQVQImWNgYGAAAAAEAAGjChXjAAAAAElFTkSuQmCC');
     } else { $c->status=200; $body=file_get_contents(__DIR__.'/amazon-product.html'); }
     return ($c->options[CURLOPT_WRITEFUNCTION])($c,$body)===strlen($body);
 }

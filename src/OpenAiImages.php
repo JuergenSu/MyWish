@@ -26,6 +26,7 @@ final class OpenAiImages
     {
         unset($_SESSION['importImage']);
         if (!$this->available()) { throw new Problem(503,'Die OpenAI-Bildsuche ist nicht eingerichtet. Bitte API-Key und Modell in config.php hinterlegen.'); }
+        if (!extension_loaded('gd')) { throw new Problem(503,'Für die Bildsuche bitte die PHP-Erweiterung GD beim Webhoster aktivieren.'); }
         $title=App::text(['title'=>$title],'title',200,true);
         $url=self::productUrl($url);
         // Alte leere Treffer nicht für die neue, breitere Suchstrategie wiederverwenden.

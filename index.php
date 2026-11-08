@@ -7,11 +7,15 @@ use MyWish\App;
 use MyWish\Problem;
 
 $page=is_string($_GET['page'] ?? null) ? $_GET['page'] : 'home';
-$error=$_SESSION['authError'] ?? ''; unset($_SESSION['authError']); $form=[]; $preview=null; $state=null;
+$error=$_SESSION['authError'] ?? ''; unset($_SESSION['authError']); $form=[]; $preview=null; $state=null; $shared=null; $sharedMediaId=null;
 try { $settings=$app->settings(); } catch (Throwable $ex) { bootFailure($ex instanceof Problem ? $ex->getMessage() : 'Die Daten können nicht gelesen werden.'); }
 if ($_SERVER['REQUEST_METHOD']==='POST') {
     try {
         $form=input(); $action=App::text($form,'action',30,true);
+        if (in_array($action,['login','register'],true)) {
+            $returnList=returnListId($form['returnList'] ?? '');
+            if ($returnList!=='') { $_SESSION['returnListId']=$returnList; }
+        }
         $result=mutate($app,$action,$form);
         if (in_array($action,['import','importImage','searchImage'],true)) {
             $preview=$result; $page='wish';
@@ -20,6 +24,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         } else {
             $_SESSION['flash']=$result['message'];
             $query=match ($action) {
+                'login','register'=>afterLoginQuery(),
                 'saveList'=>'page=list&id='.$result['id'],
                 'saveWish','deleteWish','reserve','unreserve'=>'page=list&id='.$result['listId'],
                 'account','unlinkGoogle'=>'page=account',
@@ -34,10 +39,20 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     }
     $settings=$app->settings();
 }
+$returnList=returnListId($_GET['returnList'] ?? ($form['returnList'] ?? ''));
+if ($returnList!=='' && in_array($page,['login','register'],true)) { $_SESSION['returnListId']=$returnList; }
 if (!$settings) { $page='setup'; }
 else {
     try { $state=$app->snapshot(); }
-    catch (Problem $ex) { if ($ex->status===401) { if (!in_array($page,['login','register'],true)) { $page='login'; } } else { $error=$ex->getMessage(); http_response_code($ex->status); $page='error'; } }
+    catch (Problem $ex) { if ($ex->status===401) { if (!in_array($page,['login','register','share'],true)) { $page='login'; } } else { $error=$ex->getMessage(); http_response_code($ex->status); $page='error'; } }
+}
+if ($page==='share' && $settings) {
+    header('X-Robots-Tag: noindex, nofollow');
+    try {
+        $shared=$app->sharedList(is_string($_GET['id'] ?? null) ? $_GET['id'] : '');
+        if ($state) { header('Location: '.url('page=list&id='.$shared['list']['id']),true,303); exit; }
+        $sharedMediaId=$shared['list']['id'];
+    } catch (Throwable $ex) { [$status,$error]=safeError($ex); http_response_code($status); $page='error'; }
 }
 if ($state && in_array($page,['setup','login','register'],true)) { $page='home'; }
 if ($page==='register' && ($settings['registration'] ?? '')!=='open') { $page='login'; $error='Die Registrierung ist geschlossen.'; }
@@ -47,7 +62,7 @@ $flash=$_SESSION['flash'] ?? ''; unset($_SESSION['flash']);
 ?>
 <!doctype html>
 <html lang="de">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#635bdb"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="<?= e($siteName) ?>"><title><?= e($siteName) ?> · Wünsche verbinden</title><link rel="icon" href="<?= e($base) ?>/assets/favicon.svg" type="image/svg+xml"><link rel="manifest" href="<?= e($base) ?>/manifest.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="<?= e($base) ?>/assets/icons/apple-touch-icon.png"><link rel="stylesheet" href="<?= e($base) ?>/assets/css/app.css?v=full-wish-images"><script src="<?= e($base) ?>/assets/js/app.js" defer></script><script src="<?= e($base) ?>/assets/js/install.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#635bdb"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="<?= e($siteName) ?>"><title><?= e($siteName) ?> · Wünsche verbinden</title><link rel="icon" href="<?= e($base) ?>/assets/favicon.svg" type="image/svg+xml"><link rel="manifest" href="<?= e($base) ?>/manifest.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="<?= e($base) ?>/assets/icons/apple-touch-icon.png"><link rel="stylesheet" href="<?= e($base) ?>/assets/css/app.css?v=sharing-uploads"><script src="<?= e($base) ?>/assets/js/app.js?v=sharing-uploads" defer></script><script src="<?= e($base) ?>/assets/js/install.js" defer></script></head>
 <body>
 <a class="skip" href="#main">Zum Inhalt</a>
 <?php if ($settings): ?>
@@ -67,7 +82,7 @@ if (in_array($page,['setup','login','register'],true)):
 <section class="auth-layout"><div class="auth-story"><span class="eyebrow">SCHENKEN BEGINNT MIT EINEM WUNSCH</span><h1>Mehr Vorfreude.<br>Weniger Rätselraten.</h1><p>Sammle deine Herzenswünsche und mach den Menschen, die dich beschenken möchten, eine kleine Freude.</p><div class="gift-scene" aria-hidden="true"><span class="spark s1">✦</span><span class="spark s2">✧</span><div class="present p-back"></div><div class="present p-front"><span>♡</span></div><span class="spark s3">✦</span></div><div class="story-note"><?= icon('heart') ?> Die schönsten Geschenke bleiben eine Überraschung.</div></div>
 <div class="panel auth-panel"><span class="mini-icon"><?= icon($setup ? 'gift' : 'heart') ?></span><h2><?= $setup ? 'Dein MyWish beginnt hier' : ($register ? 'Platz für deine Wünsche' : 'Schön, dass du da bist') ?></h2><p class="muted"><?= $setup ? 'Einmal einrichten, gemeinsam Vorfreude teilen.' : ($register ? 'Erstelle dein Konto – ganz ohne E-Mail-Versand.' : 'Melde dich an und entdecke, was Freude macht.') ?></p>
 <form method="post" class="stack">
-<?= hidden('action',$setup ? 'setup' : ($register ? 'register' : 'login')) ?><?= csrf() ?>
+<?= hidden('action',$setup ? 'setup' : ($register ? 'register' : 'login')) ?><?= csrf() ?><?= hidden('returnList',$returnList) ?>
 <?php if ($setup): ?><?= field('siteName','Name deiner Wunschwelt',$form['siteName'] ?? 'MyWish','text',true,80) ?><?php endif ?>
 <?php if ($setup || $register): ?><?= field('name','Dein Anzeigename',$form['name'] ?? '','text',true,100) ?><?php endif ?>
 <?= field('username','Benutzername oder E-Mail',$form['username'] ?? '','text',true,120,'username') ?>
@@ -76,7 +91,7 @@ if (in_array($page,['setup','login','register'],true)):
 <?php if ($setup): ?><label>Registrierung<select name="registration"><option value="open">Offen – neue Nutzer können sich registrieren</option><option value="closed" <?= ($form['registration'] ?? '')==='closed' ? 'selected' : '' ?>>Geschlossen – nur dieses Konto</option></select></label><p class="field-help">Alle angemeldeten Nutzer sehen alle Listen. Es gibt keine privaten Listen und keine Adminrolle. Registrierung später nur durch den Betreiber per Konfigurationsdatei ändern.</p><?php endif ?>
 <button class="button primary full" type="submit"><?= $setup ? 'MyWish einrichten' : ($register ? 'Konto erstellen' : 'Anmelden') ?><?= icon('arrow') ?></button></form>
 <?php if (!$setup && $google->available()): ?><div class="auth-divider"><span>oder</span></div><?= googleButton('login','Mit Google anmelden') ?><p class="field-help google-help">Schon ein MyWish-Konto? Mit deinem bisherigen Passwort anmelden und Google unter „Mein Konto“ verknüpfen.</p><?php endif ?>
-<?php if (!$setup): ?><p class="auth-switch"><?= $register ? 'Schon dabei?' : 'Noch kein Konto?' ?> <?php if ($register || ($settings['registration'] ?? '')==='open'): ?><a href="<?= e(url('page='.($register ? 'login' : 'register'))) ?>"><?= $register ? 'Jetzt anmelden' : 'Jetzt registrieren' ?></a><?php else: ?>Registrierung geschlossen.<?php endif ?></p><?php else: ?><p class="field-help">PHP und Storage geprüft · Keine Datenbank erforderlich</p><?php endif ?></div></section>
+<?php if (!$setup): ?><p class="auth-switch"><?= $register ? 'Schon dabei?' : 'Noch kein Konto?' ?> <?php if ($register || ($settings['registration'] ?? '')==='open'): ?><a href="<?= e(url('page='.($register ? 'login' : 'register').($returnList!=='' ? '&returnList='.$returnList : ''))) ?>"><?= $register ? 'Jetzt anmelden' : 'Jetzt registrieren' ?></a><?php else: ?>Registrierung geschlossen.<?php endif ?></p><?php else: ?><p class="field-help">PHP und Storage geprüft · Keine Datenbank erforderlich</p><?php endif ?></div></section>
 <?php elseif ($page==='home' && $state):
     $q=is_string($_GET['q'] ?? null) ? trim($_GET['q']) : '';
     $lists=array_filter($state['lists'],fn($l)=>$q==='' || stripos($l['name'].' '.$l['ownerName'],$q)!==false);
@@ -99,15 +114,16 @@ if (in_array($page,['setup','login','register'],true)):
 <?= textarea('description','Ein paar Worte zur Liste (optional)',$f['description'] ?? '') ?>
 <fieldset><legend>Deine Coverfarbe</legend><div class="cover-options"><?php foreach (['lavender'=>'Lavendel','peach'=>'Pfirsich','mint'=>'Minze','sky'=>'Himmel'] as $key=>$label): ?><label class="cover-option <?= e($key) ?>"><input type="radio" name="cover" value="<?= e($key) ?>" <?= ($f['cover'] ?? 'lavender')===$key ? 'checked' : '' ?>><?= e($label) ?></label><?php endforeach ?></div></fieldset>
 <?= imageField($l['image'] ?? false) ?>
-<div class="notice soft"><?= icon('info') ?><span>Alle angemeldeten Nutzer können diese Liste sehen. Nur du bearbeitest sie. Reservierungen bleiben für dich unsichtbar.</span></div><div class="form-actions"><button class="button primary">Liste speichern</button><a class="button secondary" href="<?= e(url($id ? 'page=list&id='.$id : '')) ?>">Abbrechen</a></div></form>
-<?php elseif ($page==='list' && $state):
+<div class="notice soft"><?= icon('info') ?><span>Alle angemeldeten Nutzer und jeder mit dem Teilen-Link können diese Liste sehen. Nur du bearbeitest sie. Reservierungen bleiben für dich unsichtbar.</span></div><div class="form-actions"><button class="button primary">Liste speichern</button><a class="button secondary" href="<?= e(url($id ? 'page=list&id='.$id : '')) ?>">Abbrechen</a></div></form>
+<?php elseif (($page==='list' && $state) || ($page==='share' && $shared)):
     $id=is_string($_GET['id'] ?? null) ? $_GET['id'] : '';
-    $l=App::find($state['lists'],$id); $own=$l['ownerUserId']===$user['id'];
-    $wishes=array_filter($state['wishes'],fn($w)=>$w['listId']===$id); ?>
-<?= backLink('', 'Alle Wunschlisten') ?>
+    $guest=$page==='share';
+    $l=$guest ? $shared['list'] : App::find($state['lists'],$id); $own=!$guest && $l['ownerUserId']===$user['id'];
+    $wishes=$guest ? $shared['wishes'] : array_filter($state['wishes'],fn($w)=>$w['listId']===$id); ?>
+<?php if (!$guest): ?><?= backLink('', 'Alle Wunschlisten') ?><?php else: ?><div class="notice soft"><?= icon('info') ?><span>Geteilte Wunschliste · Zum Reservieren bitte <a href="<?= e(url('page=login&returnList='.$id)) ?>">anmelden</a>.</span></div><?php endif ?>
 <section class="list-hero <?= e($l['cover']) ?>"><?php if ($l['image']): ?><img class="hero-cover" src="<?= e(media('lists',$id)) ?>" alt=""><?php endif ?><div class="list-hero-content"><span class="pill"><?= e($l['occasion']) ?><?= $l['eventDate'] ? ' · '.e(dateDE($l['eventDate'])) : '' ?></span><h1><?= e($l['name']) ?></h1><p>Eine Wunschliste von <strong><?= e($l['ownerName']) ?></strong></p><?php if ($l['description']): ?><p class="description"><?= nl2br(e($l['description'])) ?></p><?php endif ?></div><div class="hero-art" aria-hidden="true"><?= icon('gift') ?></div></section>
-<div class="section-heading wishes-heading"><div><h2><?= count($wishes) ?> <?= count($wishes)===1 ? 'Wunsch' : 'Wünsche' ?></h2><p class="muted"><?= $own ? 'Deine Reservierungen bleiben eine Überraschung.' : 'Mit Liebe aussuchen. Eine Reservierung ist keine Bestellung.' ?></p></div><?php if ($own): ?><div class="button-group"><a class="button secondary" href="<?= e(url('page=editList&id='.$id)) ?>"><?= icon('edit') ?>Liste bearbeiten</a><a class="button primary" href="<?= e(url('page=wish&listId='.$id)) ?>"><?= icon('plus') ?>Wunsch hinzufügen</a></div><?php endif ?></div>
-<div class="card-grid wish-grid"><?php foreach ($wishes as $w) { wishCard($w,$l,$own); } ?></div>
+<div class="section-heading wishes-heading"><div><h2><?= count($wishes) ?> <?= count($wishes)===1 ? 'Wunsch' : 'Wünsche' ?></h2><p class="muted"><?= $own ? 'Deine Reservierungen bleiben eine Überraschung.' : 'Mit Liebe aussuchen. Eine Reservierung ist keine Bestellung.' ?></p></div><div class="button-group"><?= shareControl($l) ?><?php if ($own): ?><a class="button secondary" href="<?= e(url('page=editList&id='.$id)) ?>"><?= icon('edit') ?>Liste bearbeiten</a><a class="button primary" href="<?= e(url('page=wish&listId='.$id)) ?>"><?= icon('plus') ?>Wunsch hinzufügen</a><?php endif ?></div></div>
+<div class="card-grid wish-grid"><?php foreach ($wishes as $w) { wishCard($w,$l,$own,false,$guest); } ?></div>
 <?php if (!$wishes): ?><?= emptyState('Hier ist noch Platz für Wünsche',$own ? 'Ein Buch, ein Erlebnis oder etwas ganz Eigenes – dein erster Wunsch wartet schon.' : 'Bald gibt es hier Geschenkideen zu entdecken.') ?><?php if ($own): ?><div class="center"><a class="button primary" href="<?= e(url('page=wish&listId='.$id)) ?>">Ersten Wunsch hinzufügen</a></div><?php endif ?><?php endif ?>
 <?php if ($own): ?><details class="danger-zone"><summary>Liste löschen</summary><p>Diese Liste mit allen Wünschen und eventuell vorhandenen Reservierungen dauerhaft löschen.</p><form method="post"><?= csrf() ?><?= hidden('action','deleteList') ?><?= hidden('id',$id) ?><label class="check"><input type="checkbox" name="confirm" value="yes" required>Ich möchte die gesamte Liste unwiderruflich löschen.</label><button class="button danger">Liste endgültig löschen</button></form></details><?php endif ?>
 <?php elseif ($page==='wish' && $state):
@@ -131,7 +147,6 @@ if (in_array($page,['setup','login','register'],true)):
 <div id="imported-image-box" data-preview-url="<?= e($base) ?>/media.php?type=preview"><?php if (($f['useImportedImage'] ?? '')==='yes'): ?><?php if (isset($_SESSION['importImage']['image']['sourceUrl'])): ?><label class="check"><input type="checkbox" name="useImportedImage" value="yes" checked>Dieses Bild übernehmen</label><?php else: ?><?= hidden('useImportedImage','yes') ?><?php endif ?><img class="image-preview" src="<?= e($base) ?>/media.php?type=preview" alt="Importierte Bildvorschau"><?= imageSourceLink($_SESSION['importImage']['image']['sourceUrl'] ?? '') ?><p class="field-help">Importiertes Bild wird beim Speichern übernommen.</p><?php elseif ($w['imageSourceUrl'] ?? ''): ?><?= imageSourceLink($w['imageSourceUrl']) ?><?php endif ?></div>
 <?php if ($imageSearch->available()): ?><div class="import-box"><button class="button secondary" id="openai-image-search" name="action" value="searchImage" formnovalidate><?= icon('search') ?>Bild mit OpenAI suchen</button><p class="field-help">Produktname und bereinigter Produktlink werden zur Bildsuche an OpenAI gesendet. Bitte das vorgeschlagene Modell prüfen.</p><p id="openai-image-status" role="status" class="field-help"></p></div><?php endif ?>
 <div class="import-box"><label for="imageUrl">Bildadresse (optional)</label><div class="import-row"><input id="imageUrl" name="imageUrl" type="url" maxlength="2048" value="<?= e($f['imageUrl'] ?? '') ?>" placeholder="https://beispiel.de/produktbild.jpg"><button class="button secondary" name="action" value="importImage" formnovalidate>Bild übernehmen</button></div><p class="field-help">Die direkte Adresse einer JPEG-, PNG- oder WebP-Datei einfügen. Das Bild wird geprüft und lokal gespeichert.</p>
-<?php if (!(($f['useImportedImage'] ?? '')==='yes' || ($w['image'] ?? false))): ?><p class="image-search-help">Kein passendes Bild? <a id="google-image-search" href="<?= e(MyWish\Metadata::googleImagesUrl($f['title'] ?? '',$f['productUrl'] ?? '')) ?>" target="_blank" rel="noopener noreferrer"><?= icon('search') ?>Bei Google nach einem Bild suchen<span class="sr-only"> (öffnet neuen Tab)</span></a></p><p class="field-help">Wähle ein passendes Bild, kopiere dessen Bildadresse und füge sie hier ein. Alternativ kannst du unten ein eigenes Bild hochladen.</p><?php endif ?>
 </div>
 <?= imageField($w['image'] ?? false) ?>
 <div class="form-actions"><button class="button primary" name="action" value="saveWish">Wunsch speichern</button><a class="button secondary" href="<?= e(url('page=list&id='.$listId)) ?>">Abbrechen</a></div></form>
@@ -152,5 +167,5 @@ if (in_array($page,['setup','login','register'],true)):
 <?php elseif ($page==='error'): ?><?= emptyState('MyWish ist gerade nicht verfügbar','Bitte die angezeigte Meldung prüfen und später erneut versuchen.') ?>
 <?php else: throw new Problem(404,'Diese Seite wurde nicht gefunden.'); endif;
 } catch (Throwable $ex) { [$status,$message]=safeError($ex); http_response_code($status); ?><div class="notice error" role="alert"><?= e($message) ?></div><a class="button secondary" href="<?= e(url()) ?>">Zur Übersicht</a><?php } ?>
-</main><footer class="footer shell"><a class="brand small" href="<?= e(url()) ?>"><?= icon('gift') ?><?= e($siteName) ?></a><span>Mit Wünschen fängt Freude an.</span><span>Alle Listen sind für angemeldete Nutzer sichtbar. <a href="<?= e(url('page=account')) ?>">Mein Konto</a></span></footer>
+</main><footer class="footer shell"><a class="brand small" href="<?= e(url()) ?>"><?= icon('gift') ?><?= e($siteName) ?></a><span>Mit Wünschen fängt Freude an.</span><span>Listen sind auch über ihren Teilen-Link sichtbar. <a href="<?= e(url('page=account')) ?>">Mein Konto</a></span></footer>
 </body></html>
