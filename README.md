@@ -9,7 +9,7 @@ Eine kleine, selbst gehostete Wunschwelt für Freunde und Familie. PHP 8.2+, HTM
 - Alle angemeldeten Nutzer sehen alle Listen. Genau ein Eigentümer bearbeitet eine Liste und ihre Wünsche. Andere Nutzer können eine Einheit pro Wunsch reservieren und ihre Reservierung wieder freigeben.
 - Der Eigentümer erhält **keine Reservierungsinformationen**, weder in HTML noch in JSON. Es gibt keine Adminrolle, privaten Listen, Kinderprofile oder Freigabelinks. Maßgeblich ist [Epic #3](https://github.com/JuergenSu/MyWish/issues/3); ältere Rollen-/Sharing-Anforderungen einzelner Tickets werden dadurch ersetzt.
 - Listen mit Anlass, Datum, Beschreibung und Cover; Wünsche mit optionalem Shoplink, Bild, EUR-Preis und Menge (1–99).
-- Optionaler Produktimport mit Vorschau (OpenGraph, JSON-LD, HTML-Titel und Amazon.de-Produktfelder). Eingaben prüfen und explizit speichern; ein manueller Wunsch funktioniert immer.
+- Optionaler Produktimport mit Vorschau (OpenGraph, Twitter Cards, JSON-LD, Produktgalerien und Amazon.de-Produktfelder). Eingaben prüfen und explizit speichern; ein manueller Wunsch funktioniert immer.
 - Meine Reservierungen, Suche über Listen/Anzeigenamen, mobile Oberfläche und Formulare ohne JavaScript.
 - Installationsbanner auf dem Handy: Android-Installationsdialog oder iPhone-Anleitung für den Home-Bildschirm; App-Manifest und lokale Icons, auch im Unterordner.
 
@@ -24,6 +24,10 @@ Für die Installation ist HTTPS nötig; localhost funktioniert für Entwicklung 
 Auf dem Startbildschirm erscheint das weiße Geschenk auf lila Hintergrund: Android nutzt die Manifest-Icons mit 192/512 px, iPhone das eigene Apple-Touch-Icon mit 180 px. Falls bereits eine ältere Verknüpfung mit einem anderen Icon besteht, diese entfernen und die App erneut zum Startbildschirm hinzufügen.
 
 ## Fehlendes Bild ergänzen
+
+Beim Linkimport sucht MyWish zuerst auf der Produktseite: in strukturierten Produktdaten (auch JSON-LD-Graphen und ImageObjects), OpenGraph/Twitter-Metadaten, Microdata, markierten Produktgalerien, `picture`/`srcset` und verzögert geladenen Bildern. Unterstützt werden außerdem ausdrücklich markierte Produkt-JSON-Daten und `__NEXT_DATA__.props.pageProps.product`. Erkennbare Platzhalter, Trackingbilder und Empfehlungsgalerien werden übersprungen. Ist ein Bild defekt, zu groß oder in einem ungeeigneten Format, versucht MyWish weitere Adressen derselben Seite: maximal fünf Bildversuche und insgesamt 25 Sekunden für Seite und Bilder. Pro Abruf bleiben höchstens 10 Sekunden einschließlich Weiterleitungen.
+
+Shopseiten dürfen bis **12 MB nach Dekomprimierung** groß sein (zuvor 4 MB); einzelne Bilder weiterhin bis 2 MB. Einzelne Skriptblöcke über 2 MB werden vor der HTML-Auswertung übersprungen, damit spätere Produktdaten lesbar bleiben. Es werden keine Skripte ausgeführt und keine zusätzlichen Suchdienste benötigt. Shops, die ihre Produktdaten erst nach JavaScript-Ausführung liefern oder den Abruf mit Captcha/403/503 blockieren, können weiterhin manuelle Ergänzungen erfordern. Eine größere Größenfreigabe umgeht solche Sperren nicht.
 
 Wenn beim Wunsch kein Bild vorhanden ist, öffnet **Bei Google nach einem Bild suchen** einen neuen Tab mit Produktname und gegebenenfalls Amazon-Artikelnummer. Die Suche startet nur durch deinen Klick. Kopiere beim gewünschten Bild die direkte Bildadresse, füge sie in **Bildadresse** ein und wähle **Bild übernehmen**. Prüfe die Vorschau und speichere danach den Wunsch.
 
