@@ -50,8 +50,8 @@ Die GitHub-Actions-Matrix für PHP 8.2/8.3/8.4 und Chromium ist eingerichtet; ih
 Google-Verknüpfungen ab Schema 2; aktuell Schema 3 mit atomarer, vorher gesicherter Schema-1-/Schema-2-Migration. Passwort-Login bleibt verfügbar; Google ist ohne Konfiguration deaktiviert. Details: [GOOGLE_LOGIN.md](GOOGLE_LOGIN.md), [OPENAI_IMAGES.md](OPENAI_IMAGES.md).
 
 - `php tests/google.php`: 43 Token-/State-/Account-/Migrationsprüfungen, einschließlich Algorithmusverwechslung, falschem Issuer/Audience/Nonce, Ablaufzeit, unbestätigter E-Mail, Replay, Google-only-Dummy-Hash-Abwehr und bytegleichem Vorab-Backup.
-- `python3 tests/google-http.py`: 370 HTTP-Prüfungen für komplette Callback-/Verknüpfungs-/Reauthentifizierungsabläufe in Root und Unterordner; keine implizite E-Mail-Verknüpfung, geschlossene Registrierung, Profil/Passwort/Trennen/Löschen und geschützter JWK-Cache.
-- `node tests/google-browser.cjs`: Login, Registrierung, Kontoverknüpfung, frische Bestätigung und lokale Passwortanlage mit echten lokalen Redirect-/Callback-Seiten; Google-Transport simuliert. Der appseitige Start funktioniert als natives Formular auch ohne JavaScript; Googles eigene Oberfläche kann JavaScript benötigen. Zwölf axe-/Overflow-Audits für Google-Seiten bei 360/768/1440 px.
+- `python3 tests/google-http.py`: 376 HTTP-Prüfungen für komplette Callback-/Verknüpfungs-/Reauthentifizierungsabläufe in Root und Unterordner; keine implizite E-Mail-Verknüpfung, geschlossene Registrierung, Profil/Passwort/Trennen/Löschen und geschützter JWK-Cache.
+- `node tests/google-browser.cjs`: Login, Registrierung, Kontoverknüpfung, frische Bestätigung und lokale Passwortanlage mit echten lokalen Redirect-/Callback-Seiten; Google-Transport simuliert. Der appseitige Start funktioniert als natives Formular auch ohne JavaScript; Googles eigene Oberfläche kann JavaScript benötigen. 15 axe-/Overflow-Audits für Google-Seiten bei 360/768/1440 px.
 
 Diese Provider-Tests benötigen keine echten Credentials. Der Live-Abnahmeschritt mit der tatsächlichen Google-Cloud-Konfiguration und Domain steht noch aus.
 
