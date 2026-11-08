@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Isolated copy-deployment, HTTP contract, privacy and concurrency tests. No dependencies."""
-import concurrent.futures, http.cookiejar, json, os, pathlib, shutil, socket, subprocess, tempfile, time, urllib.request, urllib.error
+import concurrent.futures, http.cookiejar, json, os, pathlib, shutil, socket, subprocess, tempfile, time, urllib.request, urllib.error, urllib.parse
+from html.parser import HTMLParser
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 PHP=os.environ.get('PHP_BIN','php')
 checks=0
@@ -126,6 +127,8 @@ with tempfile.TemporaryDirectory(prefix='mywish-http-') as temp:
  doc=pathlib.Path(temp)
  for dest in [doc,doc/'mywish']:
   shutil.copytree(ROOT,dest,dirs_exist_ok=True,ignore=shutil.ignore_patterns('.git','state.php','lock.php','tmp-*.php','config.php','.artifacts','__pycache__'))
+ for dest in [doc,doc/'mywish']:
+  (dest/'import-test.php').write_text("<?php require __DIR__.'/tests/fixtures/import-transport.php'; require __DIR__.'/index.php';")
  # Distinct stores for fresh root/subdirectory installs.
  sock=socket.socket(); sock.bind(('127.0.0.1',0)); port=sock.getsockname()[1]; sock.close()
  env=dict(os.environ,PHP_CLI_SERVER_WORKERS='4')

@@ -4,7 +4,7 @@ namespace MyWish;
 
 final class Problem extends \RuntimeException
 {
-    public function __construct(public int $status, string $message) { parent::__construct($message); }
+    public function __construct(public int $status, string $message, public ?string $reason = null) { parent::__construct($message); }
 }
 
 final class Store
