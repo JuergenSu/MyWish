@@ -86,7 +86,7 @@ try {
     $migrated=$store->transaction(fn(&$s)=>$s);
     $backups=glob($dir.'/backup-schema-1-*.php');
     ok(count($backups)===1 && file_get_contents($backups[0])===$bytes,'Exact migration backup');
-    ok($migrated['schemaVersion']===2 && $migrated['users'][0]['passwordHash']===$legacy['users'][0]['passwordHash'] && $migrated['lists']===$legacy['lists'],'Migration preserves existing data');
+    ok($migrated['schemaVersion']===Store::VERSION && $migrated['users'][0]['passwordHash']===$legacy['users'][0]['passwordHash'] && $migrated['lists']===$legacy['lists'],'Migration preserves existing data');
     $store->transaction(fn(&$s)=>$s);ok(count(glob($dir.'/backup-schema-1-*.php'))===1,'Migration runs once');
     echo "OK: $checks Google OIDC/account/migration checks\n";
 } finally { $_SESSION=[]; session_destroy(); foreach(glob($dir.'/*') as $file){unlink($file);}rmdir($dir); }

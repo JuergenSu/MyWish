@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     try {
         $form=input(); $action=App::text($form,'action',30,true);
         $result=mutate($app,$action,$form);
-        if (in_array($action,['import','importImage'],true)) {
+        if (in_array($action,['import','importImage','searchImage'],true)) {
             $preview=$result; $page='wish';
             $form=MyWish\Metadata::mergePreview($result,$form);
             if ($result['hasImage']) { $form['useImportedImage']='yes'; }
@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         }
     } catch (Throwable $ex) {
         [$status,$error]=safeError($ex); http_response_code($status);
-        if (in_array($form['action'] ?? '',['import','importImage'],true) && !isset($_SESSION['importImage'])) { unset($form['useImportedImage']); }
+        if (in_array($form['action'] ?? '',['import','importImage','searchImage'],true) && !isset($_SESSION['importImage'])) { unset($form['useImportedImage']); }
     }
     $settings=$app->settings();
 }
@@ -121,14 +121,15 @@ if (in_array($page,['setup','login','register'],true)):
     if (!$form && isset($w['priceCents'])) { $f['price']=number_format($w['priceCents']/100,2,',',''); } ?>
 <?= backLink('page=list&id='.$listId,$l['name']) ?>
 <div class="form-heading"><span class="eyebrow">WAS MACHT DICH GLÜCKLICH?</span><h1><?= $id ? 'Wunsch bearbeiten' : 'Ein neuer Herzenswunsch' ?></h1><p class="muted">Mit Produktlink oder ganz aus deiner Fantasie.</p></div>
-<form class="panel edit-panel stack" method="post" enctype="multipart/form-data"><?= csrf() ?><?= hidden('id',$id) ?><?= hidden('listId',$listId) ?>
+<form class="panel edit-panel stack" id="wish-form" method="post" enctype="multipart/form-data" data-image-api="<?= e($base) ?>/api/index.php" data-image-auto="<?= $imageSearch->available() && ($action ?? '')==='import' && $preview && !$preview['hasImage'] && empty($w['image']) && ($f['title'] ?? '')!=='' ? 'yes' : 'no' ?>"><?= csrf() ?><?= hidden('id',$id) ?><?= hidden('listId',$listId) ?>
 <div class="import-box"><label for="productUrl">Produktlink (optional)</label><div class="import-row"><input id="productUrl" name="productUrl" type="url" maxlength="2048" value="<?= e($f['productUrl'] ?? '') ?>" placeholder="https://shop.de/dein-wunsch"><button class="button secondary" name="action" value="import" formnovalidate><?= icon('spark') ?>Daten übernehmen</button></div><p class="field-help">Wir versuchen Titel, Preis und Bild zu finden. Bereits ausgefüllte Texte bleiben erhalten. Bitte alle Angaben prüfen.</p></div>
 <?php if ($preview): ?><div class="notice <?= !empty($preview['warning']) ? 'soft' : 'success' ?>" role="status"><?= e($preview['warning'] ?: 'Vorschau geladen. Bitte prüfen und erst danach speichern.') ?></div><?php endif ?>
 <?= field('title','Dein Wunsch',$f['title'] ?? '','text',true,200) ?>
 <?= textarea('description','Beschreibung (optional)',$f['description'] ?? '') ?>
 <div class="form-row"><?= field('price','Preis in EUR (optional)',$f['price'] ?? '','text',false,12) ?><?= field('quantity','Gewünschte Menge',$f['quantity'] ?? 1,'number',true,2) ?></div>
 <?php if ($id): ?><p class="field-help">Wenn du die Menge änderst, werden eventuell vorhandene Reservierungen zurückgesetzt. Dies geschieht unabhängig vom Reservierungsstand.</p><?php endif ?>
-<?php if (($f['useImportedImage'] ?? '')==='yes'): ?><?= hidden('useImportedImage','yes') ?><img class="image-preview" src="<?= e($base) ?>/media.php?type=preview" alt="Importierte Bildvorschau"><p class="field-help">Importiertes Bild wird beim Speichern übernommen.</p><?php endif ?>
+<div id="imported-image-box" data-preview-url="<?= e($base) ?>/media.php?type=preview"><?php if (($f['useImportedImage'] ?? '')==='yes'): ?><?php if (isset($_SESSION['importImage']['image']['sourceUrl'])): ?><label class="check"><input type="checkbox" name="useImportedImage" value="yes" checked>Dieses Bild übernehmen</label><?php else: ?><?= hidden('useImportedImage','yes') ?><?php endif ?><img class="image-preview" src="<?= e($base) ?>/media.php?type=preview" alt="Importierte Bildvorschau"><?= imageSourceLink($_SESSION['importImage']['image']['sourceUrl'] ?? '') ?><p class="field-help">Importiertes Bild wird beim Speichern übernommen.</p><?php elseif ($w['imageSourceUrl'] ?? ''): ?><?= imageSourceLink($w['imageSourceUrl']) ?><?php endif ?></div>
+<?php if ($imageSearch->available()): ?><div class="import-box"><button class="button secondary" id="openai-image-search" name="action" value="searchImage" formnovalidate><?= icon('search') ?>Bild mit OpenAI suchen</button><p class="field-help">Produktname und bereinigter Produktlink werden zur Bildsuche an OpenAI gesendet. Bitte das vorgeschlagene Modell prüfen.</p><p id="openai-image-status" role="status" class="field-help"></p></div><?php endif ?>
 <div class="import-box"><label for="imageUrl">Bildadresse (optional)</label><div class="import-row"><input id="imageUrl" name="imageUrl" type="url" maxlength="2048" value="<?= e($f['imageUrl'] ?? '') ?>" placeholder="https://beispiel.de/produktbild.jpg"><button class="button secondary" name="action" value="importImage" formnovalidate>Bild übernehmen</button></div><p class="field-help">Die direkte Adresse einer JPEG-, PNG- oder WebP-Datei einfügen. Das Bild wird geprüft und lokal gespeichert.</p>
 <?php if (!(($f['useImportedImage'] ?? '')==='yes' || ($w['image'] ?? false))): ?><p class="image-search-help">Kein passendes Bild? <a id="google-image-search" href="<?= e(MyWish\Metadata::googleImagesUrl($f['title'] ?? '',$f['productUrl'] ?? '')) ?>" target="_blank" rel="noopener noreferrer"><?= icon('search') ?>Bei Google nach einem Bild suchen<span class="sr-only"> (öffnet neuen Tab)</span></a></p><p class="field-help">Wähle ein passendes Bild, kopiere dessen Bildadresse und füge sie hier ein. Alternativ kannst du unten ein eigenes Bild hochladen.</p><?php endif ?>
 </div>

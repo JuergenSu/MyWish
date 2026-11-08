@@ -86,6 +86,7 @@ final class App
                 $owner = self::find($s['users'], $l['ownerUserId']);
                 $l['ownerName'] = $owner['name'];
                 $l['wishCount'] = count(array_filter($s['wishes'], fn($w)=>$w['listId']===$l['id']));
+                if (isset($l['image']['sourceUrl'])) { $l['imageSourceUrl']=$l['image']['sourceUrl']; }
                 $l['image'] = $l['image'] !== null;
                 $lists[] = $l;
             }
@@ -97,6 +98,7 @@ final class App
                     $w['available'] = $w['quantity'] - count($rs);
                     $w['reservedByMe'] = count(array_filter($rs, fn($r)=>$r['userId']===$u['id'])) > 0;
                 }
+                if (isset($w['image']['sourceUrl'])) { $w['imageSourceUrl']=$w['image']['sourceUrl']; }
                 $w['image'] = $w['image'] !== null;
                 $wishes[] = $w;
             }
