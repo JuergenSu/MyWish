@@ -184,7 +184,7 @@ fs.mkdirSync(artifacts, { recursive: true });
     assert.equal(await page.locator(".wish-card").count(), 1);
     assert.equal(await page.locator(".availability").count(), 0);
     assert.equal(
-      (await page.locator(".wish-image img").getAttribute("src")).includes(
+      (await page.locator(".wish-image-main").getAttribute("src")).includes(
         "media.php",
       ),
       true,
