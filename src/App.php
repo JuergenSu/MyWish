@@ -4,6 +4,8 @@ namespace MyWish;
 
 final class App
 {
+    public const PASSWORD_HINT = 'Mindestens 8 Zeichen und mindestens ein Sonderzeichen (z. B. !, ? oder #).';
+
     public function __construct(public Store $store, private ?string $registrationOverride = null)
     {
         if (!in_array($registrationOverride, [null,'open','closed'], true)) { throw new Problem(503,'Registrierungsmodus in config.php muss open oder closed sein.'); }
@@ -28,7 +30,11 @@ final class App
     public static function password(array $in, string $key = 'password'): string
     {
         $pass = $in[$key] ?? null;
-        if (!is_string($pass) || strlen($pass) < 12 || strlen($pass) > 72 || str_contains($pass, "\0")) { throw new Problem(422, 'Das Passwort muss 12 bis 72 Bytes lang sein.'); }
+        if (!is_string($pass) || strlen($pass) > 72 || str_contains($pass, "\0")
+            || !preg_match('//u', $pass) || preg_match_all('/./us', $pass) < 8
+            || !preg_match('/[\p{P}\p{S}]/u', $pass)) {
+            throw new Problem(422, self::PASSWORD_HINT.' Maximal 72 Bytes.');
+        }
         return $pass;
     }
     public static function webUrl(string $value): string

@@ -5,6 +5,7 @@ Eine kleine, selbst gehostete Wunschwelt für Freunde und Familie. PHP 8.2+, HTM
 ## V1
 
 - Browser-Erstinstallation, Registrierung, Login, Abmelden, eigenes Konto und Passwort ändern, Konto löschen.
+- Neue Passwörter: mindestens 8 Zeichen einschließlich mindestens eines Sonderzeichens (z. B. `!`, `?`, `#`), maximal 72 UTF-8-Bytes. Bestehende Passwörter bleiben gültig; Leerzeichen zählen nicht als Sonderzeichen.
 - Alle angemeldeten Nutzer sehen alle Listen. Genau ein Eigentümer bearbeitet eine Liste und ihre Wünsche. Andere Nutzer können eine Einheit pro Wunsch reservieren und ihre Reservierung wieder freigeben.
 - Der Eigentümer erhält **keine Reservierungsinformationen**, weder in HTML noch in JSON. Es gibt keine Adminrolle, privaten Listen, Kinderprofile oder Freigabelinks. Maßgeblich ist [Epic #3](https://github.com/JuergenSu/MyWish/issues/3); ältere Rollen-/Sharing-Anforderungen einzelner Tickets werden dadurch ersetzt.
 - Listen mit Anlass, Datum, Beschreibung und Cover; Wünsche mit optionalem Shoplink, Bild, EUR-Preis und Menge (1–99).
