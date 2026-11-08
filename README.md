@@ -4,7 +4,7 @@ Eine kleine, selbst gehostete Wunschwelt für Freunde und Familie. PHP 8.2+, HTM
 
 ## V1
 
-- Browser-Erstinstallation, Registrierung, Login, Abmelden, eigenes Konto und Passwort ändern, Konto löschen.
+- Browser-Erstinstallation, Registrierung, Login, Abmelden, eigenes Konto und Passwort ändern, Konto löschen. Optional [mit Google anmelden](docs/GOOGLE_LOGIN.md), einschließlich ausdrücklicher Kontoverknüpfung.
 - Neue Passwörter: mindestens 8 Zeichen, maximal 72 UTF-8-Bytes. Sonderzeichen sind optional. Bestehende Passwörter bleiben gültig.
 - Alle angemeldeten Nutzer sehen alle Listen. Genau ein Eigentümer bearbeitet eine Liste und ihre Wünsche. Andere Nutzer können eine Einheit pro Wunsch reservieren und ihre Reservierung wieder freigeben.
 - Der Eigentümer erhält **keine Reservierungsinformationen**, weder in HTML noch in JSON. Es gibt keine Adminrolle, privaten Listen, Kinderprofile oder Freigabelinks. Maßgeblich ist [Epic #3](https://github.com/JuergenSu/MyWish/issues/3); ältere Rollen-/Sharing-Anforderungen einzelner Tickets werden dadurch ersetzt.
@@ -23,10 +23,16 @@ Für die Installation ist HTTPS nötig; localhost funktioniert für Entwicklung 
 
 Auf dem Startbildschirm erscheint das weiße Geschenk auf lila Hintergrund: Android nutzt die Manifest-Icons mit 192/512 px, iPhone das eigene Apple-Touch-Icon mit 180 px. Falls bereits eine ältere Verknüpfung mit einem anderen Icon besteht, diese entfernen und die App erneut zum Startbildschirm hinzufügen.
 
+## Fehlendes Bild ergänzen
+
+Wenn beim Wunsch kein Bild vorhanden ist, öffnet **Bei Google nach einem Bild suchen** einen neuen Tab mit Produktname und gegebenenfalls Amazon-Artikelnummer. Die Suche startet nur durch deinen Klick. Kopiere beim gewünschten Bild die direkte Bildadresse, füge sie in **Bildadresse** ein und wähle **Bild übernehmen**. Prüfe die Vorschau und speichere danach den Wunsch.
+
+Die Bilddatei wird serverseitig geprüft und lokal gespeichert; kein externes Hotlinking. Erlaubt sind JPEG/PNG/WebP bis 2 MB und 16 Megapixel. Private Netzwerkadressen, aktive Inhalte und unsichere Dateiprotokolle sind gesperrt. Alternativ bleibt der Datei-Upload verfügbar. Diese manuelle Google-Suche benötigt keinen API-Key und keine Google-Login-Konfiguration.
+
 ## Installation durch Kopieren
 
 1. PHP **8.2 oder neuer** aktivieren. Pflicht: JSON, Session, Filter, Hash, OpenSSL, Standardfunktionen inklusive `getimagesizefromstring`, `flock`, `rename`. Für Import zusätzlich cURL und DOM/libxml; mbstring und intl sind optional. GD/Imagick sind nicht nötig.
-2. Anwendung in einen frischen Webordner kopieren, z. B. `/` oder `/mywish/`. Entwicklungsordner `.git`, `tests`, `.github` und `docs` müssen nicht hochgeladen werden. `src` und `assets` gehören zur Anwendung.
+2. Anwendung in einen frischen Webordner kopieren, z. B. `/` oder `/mywish/`. Entwicklungsordner `.git`, `tests`, `.github` und `docs` müssen nicht hochgeladen werden. `src`, `assets`, `auth` und `vendor` gehören zur Anwendung.
 3. PHP muss `storage/` lesen/schreiben können. Möglichst nur dem PHP-Benutzer Rechte geben (Ordner 0700 bzw. passende Gruppenrechte; niemals pauschal 0777). Lokales Dateisystem mit funktionierendem `flock`/atomarem `rename` nutzen, kein ungetestetes NFS.
 4. **Empfohlen:** Daten außerhalb des öffentlichen Webroots speichern. `config.example.php` nach `config.php` kopieren und `storage` auf einen vorhandenen, beschreibbaren Ordner außerhalb des Webroots setzen. Ohne eigene Konfiguration liegt Storage in `storage/`; die Dateien tragen einen PHP-Abbruchschutz, zusätzlich schützt dort `.htaccess`.
 5. Im Browser über **HTTPS** `index.php` öffnen (alternativ `setup.php`). Site-Namen, erstes normales Konto und Registrierungsmodus festlegen. Setup wird atomar abgeschlossen und danach gesperrt. Bei offener Registrierung können andere sich selbst Konten anlegen. Bei geschlossener Registrierung bleibt es bei vorhandenen Konten.
@@ -68,7 +74,7 @@ Es gibt bewusst keinen Browser-Admin und keinen Datendownload aller Konten. Der 
 4. Optional lokal `php tools/check-backup.php /pfad/zur/state.php` ausführen. Schema-/Referenz-/Mengenfehler und beschädigtes JSON werden abgewiesen. Auch ohne CLI wird beim ersten Aufruf vollständig validiert. Eine beschädigte Datei wird nie automatisch durch leere Daten ersetzt.
 5. Erst nach erfolgreicher Prüfung und **bewusster Bestätigung durch den Betreiber**: Zugriff während Restore sperren, aktuellen Stand separat sichern, wiederhergestellte Datei per Dateimanager hochladen und umbenennen. Sessions am Hoster invalidieren oder neue Installation/Verzeichnis verwenden. Restore kann sonst ältere Kontopasswörter/Sitzungsversionen zurückbringen.
 
-Updates: Zuerst Backup, dann Anwendungscode kopieren; **`storage/` und `config.php` erhalten**. V1 hat Schema 1 und keine automatische Migration. Unbekannte ältere/neuere Schema-Versionen führen zu einer verständlichen Sperre. Künftige Migrationen benötigen vor dem ersten Schreiben ein Backup und eine explizite Migrationsroutine. Code-Update und Datenstand getrennt halten. Serverwechsel: Code, Konfiguration und `state.php` mitnehmen; der Basis-Pfad wird neu erkannt.
+Updates: Zuerst Backup, dann Anwendungscode kopieren; **`storage/` und `config.php` erhalten**. Die Google-Erweiterung nutzt Schema 2. Ein gültiger Schema-1-Stand wird beim ersten Zugriff unter Lock erst gesichert und danach migriert; Details und Rollback in [Google-Anmeldung](docs/GOOGLE_LOGIN.md). Unbekannte ältere/neuere Schema-Versionen führen zu einer verständlichen Sperre. Code-Update und Datenstand getrennt halten. Serverwechsel: Code, Konfiguration und `state.php` mitnehmen; der Basis-Pfad wird neu erkannt.
 
 Registrierungsmodus ändern: In `config.php` `'registration' => 'open'` oder `'closed'` setzen; `null` verwendet die ursprüngliche Setup-Einstellung. Die Änderung greift serverseitig sofort und benötigt keine Änderung der JSON-Daten. Kein Einladungsmodus in V1. Es gibt keinen E-Mail-Passwortreset; bei Passwortverlust zunächst eine noch aktive Sitzung verwenden oder der Betreiber ersetzt offline den Hash durch einen lokal mit `password_hash` erzeugten Hash und erhöht `sessionVersion` (niemals Klartext in der Datei). Niemand erhält dadurch eine Adminrolle.
 

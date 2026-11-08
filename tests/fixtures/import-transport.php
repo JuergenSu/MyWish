@@ -8,7 +8,7 @@ function curl_exec(object $c): bool
 {
     if (str_contains($c->url,'B000000503')) { $c->status=503; $body=''; }
     elseif (str_starts_with($c->url,'https://images.example/')) {
-        $c->status=200; $body=base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6C6sAAAAASUVORK5CYII=');
+        $c->status=200; $body=str_contains($c->url,'invalid.svg') ? '<svg></svg>' : base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6C6sAAAAASUVORK5CYII=');
     } else { $c->status=200; $body=file_get_contents(__DIR__.'/amazon-product.html'); }
     return ($c->options[CURLOPT_WRITEFUNCTION])($c,$body)===strlen($body);
 }

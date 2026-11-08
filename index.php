@@ -7,13 +7,13 @@ use MyWish\App;
 use MyWish\Problem;
 
 $page=is_string($_GET['page'] ?? null) ? $_GET['page'] : 'home';
-$error=''; $form=[]; $preview=null; $state=null;
+$error=$_SESSION['authError'] ?? ''; unset($_SESSION['authError']); $form=[]; $preview=null; $state=null;
 try { $settings=$app->settings(); } catch (Throwable $ex) { bootFailure($ex instanceof Problem ? $ex->getMessage() : 'Die Daten können nicht gelesen werden.'); }
 if ($_SERVER['REQUEST_METHOD']==='POST') {
     try {
         $form=input(); $action=App::text($form,'action',30,true);
         $result=mutate($app,$action,$form);
-        if ($action==='import') {
+        if (in_array($action,['import','importImage'],true)) {
             $preview=$result; $page='wish';
             $form=MyWish\Metadata::mergePreview($result,$form);
             if ($result['hasImage']) { $form['useImportedImage']='yes'; }
@@ -22,13 +22,16 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
             $query=match ($action) {
                 'saveList'=>'page=list&id='.$result['id'],
                 'saveWish','deleteWish','reserve','unreserve'=>'page=list&id='.$result['listId'],
-                'account'=>'page=account',
+                'account','unlinkGoogle'=>'page=account',
                 default=>'',
             };
             if (in_array($action,['reserve','unreserve'],true) && ($form['returnPage'] ?? '')==='reservations') { $query='page=reservations'; }
             header('Location: '.url($query),true,303); exit;
         }
-    } catch (Throwable $ex) { [$status,$error]=safeError($ex); http_response_code($status); }
+    } catch (Throwable $ex) {
+        [$status,$error]=safeError($ex); http_response_code($status);
+        if (in_array($form['action'] ?? '',['import','importImage'],true) && !isset($_SESSION['importImage'])) { unset($form['useImportedImage']); }
+    }
     $settings=$app->settings();
 }
 if (!$settings) { $page='setup'; }
@@ -72,6 +75,7 @@ if (in_array($page,['setup','login','register'],true)):
 <?php if ($setup || $register): ?><p class="field-help"><?= e(App::PASSWORD_HINT) ?></p><?php endif ?>
 <?php if ($setup): ?><label>Registrierung<select name="registration"><option value="open">Offen – neue Nutzer können sich registrieren</option><option value="closed" <?= ($form['registration'] ?? '')==='closed' ? 'selected' : '' ?>>Geschlossen – nur dieses Konto</option></select></label><p class="field-help">Alle angemeldeten Nutzer sehen alle Listen. Es gibt keine privaten Listen und keine Adminrolle. Registrierung später nur durch den Betreiber per Konfigurationsdatei ändern.</p><?php endif ?>
 <button class="button primary full" type="submit"><?= $setup ? 'MyWish einrichten' : ($register ? 'Konto erstellen' : 'Anmelden') ?><?= icon('arrow') ?></button></form>
+<?php if (!$setup && $google->available()): ?><div class="auth-divider"><span>oder</span></div><?= googleButton('login','Mit Google anmelden') ?><p class="field-help google-help">Schon ein MyWish-Konto? Mit deinem bisherigen Passwort anmelden und Google unter „Mein Konto“ verknüpfen.</p><?php endif ?>
 <?php if (!$setup): ?><p class="auth-switch"><?= $register ? 'Schon dabei?' : 'Noch kein Konto?' ?> <?php if ($register || ($settings['registration'] ?? '')==='open'): ?><a href="<?= e(url('page='.($register ? 'login' : 'register'))) ?>"><?= $register ? 'Jetzt anmelden' : 'Jetzt registrieren' ?></a><?php else: ?>Registrierung geschlossen.<?php endif ?></p><?php else: ?><p class="field-help">PHP und Storage geprüft · Keine Datenbank erforderlich</p><?php endif ?></div></section>
 <?php elseif ($page==='home' && $state):
     $q=is_string($_GET['q'] ?? null) ? trim($_GET['q']) : '';
@@ -125,6 +129,9 @@ if (in_array($page,['setup','login','register'],true)):
 <div class="form-row"><?= field('price','Preis in EUR (optional)',$f['price'] ?? '','text',false,12) ?><?= field('quantity','Gewünschte Menge',$f['quantity'] ?? 1,'number',true,2) ?></div>
 <?php if ($id): ?><p class="field-help">Wenn du die Menge änderst, werden eventuell vorhandene Reservierungen zurückgesetzt. Dies geschieht unabhängig vom Reservierungsstand.</p><?php endif ?>
 <?php if (($f['useImportedImage'] ?? '')==='yes'): ?><?= hidden('useImportedImage','yes') ?><img class="image-preview" src="<?= e($base) ?>/media.php?type=preview" alt="Importierte Bildvorschau"><p class="field-help">Importiertes Bild wird beim Speichern übernommen.</p><?php endif ?>
+<div class="import-box"><label for="imageUrl">Bildadresse (optional)</label><div class="import-row"><input id="imageUrl" name="imageUrl" type="url" maxlength="2048" value="<?= e($f['imageUrl'] ?? '') ?>" placeholder="https://beispiel.de/produktbild.jpg"><button class="button secondary" name="action" value="importImage" formnovalidate>Bild übernehmen</button></div><p class="field-help">Die direkte Adresse einer JPEG-, PNG- oder WebP-Datei einfügen. Das Bild wird geprüft und lokal gespeichert.</p>
+<?php if (!(($f['useImportedImage'] ?? '')==='yes' || ($w['image'] ?? false))): ?><p class="image-search-help">Kein passendes Bild? <a id="google-image-search" href="<?= e(MyWish\Metadata::googleImagesUrl($f['title'] ?? '',$f['productUrl'] ?? '')) ?>" target="_blank" rel="noopener noreferrer"><?= icon('search') ?>Bei Google nach einem Bild suchen<span class="sr-only"> (öffnet neuen Tab)</span></a></p><p class="field-help">Wähle ein passendes Bild, kopiere dessen Bildadresse und füge sie hier ein. Alternativ kannst du unten ein eigenes Bild hochladen.</p><?php endif ?>
+</div>
 <?= imageField($w['image'] ?? false) ?>
 <div class="form-actions"><button class="button primary" name="action" value="saveWish">Wunsch speichern</button><a class="button secondary" href="<?= e(url('page=list&id='.$listId)) ?>">Abbrechen</a></div></form>
 <?php if ($id): ?><details class="danger-zone narrow"><summary>Wunsch löschen</summary><p>Der Wunsch und eventuell vorhandene Reservierungen werden endgültig entfernt.</p><form method="post"><?= csrf() ?><?= hidden('action','deleteWish') ?><?= hidden('id',$id) ?><label class="check"><input type="checkbox" name="confirm" value="yes" required>Endgültige Löschung bestätigen</label><button class="button danger">Wunsch löschen</button></form></details><?php endif ?>
@@ -135,8 +142,12 @@ if (in_array($page,['setup','login','register'],true)):
 <?php if (!$reserved): ?><?= emptyState('Noch kein Geschenk ins Auge gefasst?','Entdecke die Listen deiner Lieblingsmenschen und reserviere eine Einheit eines Wunsches.') ?><div class="center"><a class="button primary" href="<?= e(url()) ?>">Wunschlisten entdecken</a></div><?php endif ?>
 <?php elseif ($page==='account' && $state): ?>
 <?= backLink('', 'Alle Wunschlisten') ?><div class="form-heading"><span class="eyebrow">DEIN PLATZ BEI MYWISH</span><h1>Mein Konto</h1><p class="muted"><?= e($user['username']) ?> · Keine E-Mail-Benachrichtigungen, keine Tracker.</p></div>
-<form class="panel edit-panel stack" method="post"><?= csrf() ?><?= hidden('action','account') ?><?= field('name','Anzeigename',$form['name'] ?? $user['name'],'text',true,100) ?><?= field('currentPassword','Aktuelles Passwort','','password',true,72,'current-password') ?><?= field('newPassword','Neues Passwort (optional)','','password',false,72,'new-password') ?><p class="field-help"><?= e(App::PASSWORD_HINT) ?> Leer lassen, um dein Passwort zu behalten. Nach Änderung werden deine anderen Sitzungen ungültig.</p><button class="button primary">Änderungen speichern</button></form>
-<div class="narrow account-footer"><form method="post"><?= csrf() ?><?= hidden('action','logout') ?><button class="button secondary">Abmelden</button></form><details class="danger-zone"><summary>Konto löschen</summary><p>Dein Konto, deine Listen und Wünsche sowie deine Reservierungen werden dauerhaft gelöscht. Sicherungen des Betreibers können ältere Daten enthalten.</p><form method="post" class="stack"><?= csrf() ?><?= hidden('action','deleteAccount') ?><?= field('currentPassword','Aktuelles Passwort','','password',true,72,'current-password') ?><label class="check"><input type="checkbox" name="confirm" value="yes" required>Ich bestätige die endgültige Löschung.</label><button class="button danger">Konto endgültig löschen</button></form></details></div>
+<?php if ($google->available() && !$user['hasLocalPassword']): ?><div class="panel edit-panel stack google-account"><h2>Google-Anmeldung bestätigen</h2><p class="muted">Für Änderungen und Kontolöschung bitte dein Google-Konto erneut bestätigen. Die Bestätigung gilt fünf Minuten.</p><?= googleButton('reauthenticate','Mit Google erneut bestätigen') ?></div><?php endif ?>
+<form class="panel edit-panel stack" method="post"><?= csrf() ?><?= hidden('action','account') ?><?= field('name','Anzeigename',$form['name'] ?? $user['name'],'text',true,100) ?><?php if ($user['hasLocalPassword']): ?><?= field('currentPassword','Aktuelles Passwort','','password',true,72,'current-password') ?><?php endif ?><?= field('newPassword',$user['hasLocalPassword'] ? 'Neues Passwort (optional)' : 'Lokales Passwort festlegen (optional)','','password',false,72,'new-password') ?><p class="field-help"><?= e(App::PASSWORD_HINT) ?> Leer lassen, um dein Passwort zu behalten. Nach Änderung werden deine anderen Sitzungen ungültig.</p><button class="button primary">Änderungen speichern</button></form>
+<?php if ($google->available()): ?><section class="panel edit-panel stack google-account"><h2>Google-Konto</h2>
+<?php if ($user['googleLinked']): ?><p>Verknüpft mit <?= e($user['googleEmail']) ?>.</p><?php if ($user['hasLocalPassword']): ?><form method="post" class="stack"><?= csrf() ?><?= hidden('action','unlinkGoogle') ?><?= field('currentPassword','Aktuelles Passwort zum Trennen','','password',true,72,'current-password') ?><button class="button secondary">Google-Verknüpfung trennen</button></form><?php else: ?><p class="muted">Zum Trennen zuerst nach Google-Bestätigung ein lokales Passwort festlegen.</p><?php endif ?>
+<?php else: ?><p class="muted">Verknüpfe dein Google-Konto, um deine bisherigen Listen auch über „Mit Google anmelden“ zu erreichen.</p><form method="post" action="<?= e($base) ?>/auth/google/start.php" class="stack"><?= csrf() ?><?= hidden('purpose','link') ?><?= field('currentPassword','Aktuelles Passwort zum Verknüpfen','','password',true,72,'current-password') ?><button class="button google-button"><img src="<?= e($base) ?>/assets/google-g.svg" alt="" width="20" height="20">Google-Konto verknüpfen</button></form><?php endif ?></section><?php endif ?>
+<div class="narrow account-footer"><form method="post"><?= csrf() ?><?= hidden('action','logout') ?><button class="button secondary">Abmelden</button></form><details class="danger-zone"><summary>Konto löschen</summary><p>Dein Konto, deine Listen und Wünsche sowie deine Reservierungen werden dauerhaft gelöscht. Sicherungen des Betreibers können ältere Daten enthalten.</p><form method="post" class="stack"><?= csrf() ?><?= hidden('action','deleteAccount') ?><?php if ($user['hasLocalPassword']): ?><?= field('currentPassword','Aktuelles Passwort','','password',true,72,'current-password') ?><?php else: ?><p>Vorher oben „Mit Google erneut bestätigen“ verwenden.</p><?php endif ?><label class="check"><input type="checkbox" name="confirm" value="yes" required>Ich bestätige die endgültige Löschung.</label><button class="button danger">Konto endgültig löschen</button></form></details></div>
 <?php elseif ($page==='error'): ?><?= emptyState('MyWish ist gerade nicht verfügbar','Bitte die angezeigte Meldung prüfen und später erneut versuchen.') ?>
 <?php else: throw new Problem(404,'Diese Seite wurde nicht gefunden.'); endif;
 } catch (Throwable $ex) { [$status,$message]=safeError($ex); http_response_code($status); ?><div class="notice error" role="alert"><?= e($message) ?></div><a class="button secondary" href="<?= e(url()) ?>">Zur Übersicht</a><?php } ?>

@@ -51,3 +51,9 @@ function wishCard(array $w,array $l,bool $own,bool $reservationPage=false): void
 <?php if ($w['reservedByMe'] || $w['available']>0): ?><form method="post" class="reservation-form" data-api="<?= e($GLOBALS['base']) ?>/api/index.php"><?= csrf() ?><?= hidden('action',$w['reservedByMe'] ? 'unreserve' : 'reserve') ?><?= hidden('id',$w['id']) ?><?= hidden('returnPage',$reservationPage ? 'reservations' : 'list') ?><button class="button <?= $w['reservedByMe'] ? 'secondary' : 'primary' ?> full"><?= icon($w['reservedByMe'] ? 'check' : 'heart') ?><?= $w['reservedByMe'] ? 'Reservierung freigeben' : ($w['quantity']>1 ? 'Eine Einheit reservieren' : 'Für mich reservieren') ?></button></form><?php else: ?><button class="button secondary full" disabled>Schon verplant</button><?php endif ?><?php endif ?>
 </div></div></article>
 <?php }
+
+function googleButton(string $purpose,string $label): string
+{
+    global $base;
+    return '<form method="post" action="'.e($base.'/auth/google/start.php').'" class="google-form">'.csrf().hidden('purpose',$purpose).'<button type="submit" class="button google-button full"><img src="'.e($base).'/assets/google-g.svg" alt="" width="20" height="20">'.e($label).'</button></form>';
+}

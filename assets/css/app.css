@@ -1579,3 +1579,54 @@ legend {
     align-self: start;
   }
 }
+
+.google-button {
+  background: #fff;
+  color: #24233a;
+  border-color: #c4c2d1;
+  font-weight: 600;
+}
+.google-button:hover {
+  background: #f5f4fa;
+}
+.google-button img {
+  flex-shrink: 0;
+}
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #68677d;
+  font-size: 0.8rem;
+  margin: 24px 0;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: #e7e7f0;
+}
+.google-help {
+  margin-top: 12px;
+}
+.google-account {
+  margin-bottom: 24px;
+  margin-top: 24px;
+}
+
+.image-search-help {
+  font-size: 0.83rem;
+  margin-top: 16px;
+  margin-bottom: 18px;
+}
+.image-search-help a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+}
+.image-search-help .icon {
+  width: 17px;
+  height: 17px;
+}
