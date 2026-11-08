@@ -20,6 +20,8 @@ Ein normales Konto ist entweder Eigentümer oder Schenkender im Kontext einer Li
 
 ## Grenzen
 
+Das Startbildschirm-Banner verwendet nur einen lokalen Ausblend-Zeitstempel. Manifest und App-Icons sind öffentlich und enthalten keine Kontodaten. Der Service Worker liegt im jeweiligen Installationspfad, reicht Anfragen unverändert an das Netzwerk weiter und speichert keine Seiten, APIs oder Medien im Offline-Cache. Installation gewährt keine zusätzlichen Rechte; Anmeldung und serverseitige Zugriffskontrollen bleiben nötig.
+
 Keine Garantie gegen absichtliche Zweitkonten, bösartigen Betreiber, kompromittiertes PHP-Hosting oder Analyse von Betriebssystem-/HTTP-Timing. Anmeldung, CSRF, Mengenprüfung und atomare Transaktionen verhindern die normalen V1-Zugriffsfehler. TLS-Terminierung, Session-Speicher, Dateirechte, Backupfristen und Serverlogs liegen beim Betreiber. Keine Telemetrie, externen Webfonts oder Tracking-Skripte. Import kontaktiert einen Shop erst auf ausdrücklichen Button-Klick serverseitig.
 
 Die Tests ersetzen kein unabhängiges Penetration Testing. Echte Apache-/Nginx-Hostingkombinationen und mobile Safari müssen vor dem jeweiligen Livebetrieb anhand der Release-Checkliste geprüft werden.
