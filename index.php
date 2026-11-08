@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         $result=mutate($app,$action,$form);
         if ($action==='import') {
             $preview=$result; $page='wish';
-            $form=array_merge($result, array_filter($form,fn($v,$k)=>in_array($k,['id','listId'],true) || ($v!=='' && in_array($k,['title','description','price','quantity'],true)),ARRAY_FILTER_USE_BOTH));
+            $form=MyWish\Metadata::mergePreview($result,$form);
             if ($result['hasImage']) { $form['useImportedImage']='yes'; }
         } else {
             $_SESSION['flash']=$result['message'];
@@ -119,7 +119,7 @@ if (in_array($page,['setup','login','register'],true)):
 <div class="form-heading"><span class="eyebrow">WAS MACHT DICH GLÜCKLICH?</span><h1><?= $id ? 'Wunsch bearbeiten' : 'Ein neuer Herzenswunsch' ?></h1><p class="muted">Mit Produktlink oder ganz aus deiner Fantasie.</p></div>
 <form class="panel edit-panel stack" method="post" enctype="multipart/form-data"><?= csrf() ?><?= hidden('id',$id) ?><?= hidden('listId',$listId) ?>
 <div class="import-box"><label for="productUrl">Produktlink (optional)</label><div class="import-row"><input id="productUrl" name="productUrl" type="url" maxlength="2048" value="<?= e($f['productUrl'] ?? '') ?>" placeholder="https://shop.de/dein-wunsch"><button class="button secondary" name="action" value="import" formnovalidate><?= icon('spark') ?>Daten übernehmen</button></div><p class="field-help">Wir versuchen Titel, Preis und Bild zu finden. Bereits ausgefüllte Texte bleiben erhalten. Bitte alle Angaben prüfen.</p></div>
-<?php if ($preview): ?><div class="notice success" role="status">Vorschau geladen. Bitte prüfen und erst danach speichern.</div><?php endif ?>
+<?php if ($preview): ?><div class="notice <?= !empty($preview['warning']) ? 'soft' : 'success' ?>" role="status"><?= e($preview['warning'] ?: 'Vorschau geladen. Bitte prüfen und erst danach speichern.') ?></div><?php endif ?>
 <?= field('title','Dein Wunsch',$f['title'] ?? '','text',true,200) ?>
 <?= textarea('description','Beschreibung (optional)',$f['description'] ?? '') ?>
 <div class="form-row"><?= field('price','Preis in EUR (optional)',$f['price'] ?? '','text',false,12) ?><?= field('quantity','Gewünschte Menge',$f['quantity'] ?? 1,'number',true,2) ?></div>

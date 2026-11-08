@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Isolated copy-deployment, HTTP contract, privacy and concurrency tests. No dependencies."""
-import concurrent.futures, http.cookiejar, json, os, pathlib, shutil, socket, subprocess, tempfile, time, urllib.request, urllib.error
+import concurrent.futures, http.cookiejar, json, os, pathlib, shutil, socket, subprocess, tempfile, time, urllib.request, urllib.error, urllib.parse
+from html.parser import HTMLParser
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 PHP=os.environ.get('PHP_BIN','php')
 checks=0
@@ -60,6 +61,28 @@ def scenario(base):
  users=[]
  for i in range(10):
   u=Client(base); u.post('register',{'name':'Schenkender '+str(i),'username':'giver'+str(i),'password':'abcdefg!'},201); users.append(u)
+ # Import form exercised against deterministic Amazon HTML, never a live shop.
+ class Inputs(HTMLParser):
+  def __init__(self,html): super().__init__(); self.values={}; self.feed(html)
+  def handle_starttag(self,tag,attrs):
+   attrs=dict(attrs)
+   if tag=='input' and 'name' in attrs:self.values[attrs['name']]=attrs.get('value','')
+ def import_form(product,**values):
+  payload={'action':'import','csrf':owner.csrf,'listId':a,'id':'','productUrl':product,**values}
+  code,body,_=owner.request('import-test.php?page=wish&listId='+a,urllib.parse.urlencode(payload).encode(),{'Content-Type':'application/x-www-form-urlencoded'})
+  check(code==200,'Import form HTTP status')
+  return body.decode(),Inputs(body.decode()).values
+ html,form=import_form('https://www.amazon.de/Orzly-Lenkrader-Kompatibel-Joy-Geschenkbox/dp/B0FLM3M1JJ/')
+ check(form['title']=='Orzly Lenkräder – kompatibel mit Joy-Con, Geschenkbox' and form['price']=='19.99','Amazon fields populate the actual form')
+ check(form['useImportedImage']=='yes' and 'Vorschau geladen' in html,'Actual form offers checked image preview')
+ html,form=import_form('https://www.amazon.de/dp/B0FLM3M1JJ',title='Mein eigener Titel',price='0',quantity='2')
+ check(form['title']=='Mein eigener Titel' and form['price']=='0' and form['quantity']=='2','Form preserves manual overrides')
+ html,form=import_form('https://www.amazon.de/Manuell-speichern/dp/B000000503/')
+ check('Amazon liefert gerade keine auslesbaren Produktdaten' in html and 'Vorschau geladen' not in html,'503 fallback is not claimed as a successful import')
+ check('useImportedImage' not in form and form['title']=='Manuell speichern','Failed import never reuses old image')
+ fallback_wish=owner.post('saveWish',{'listId':a,'title':form['title'],'productUrl':form['productUrl']},201)['id']
+ check(owner.get('state')[1]['data']['wishes'][-1]['productUrl']=='https://www.amazon.de/dp/B000000503','Failed import remains manually saveable')
+ owner.post('deleteWish',{'id':fallback_wish,'confirm':'yes'})
  code,state=users[0].get('state'); check(len(state['data']['lists'])==2,'All lists visible to signed-in user')
  users[0].post('saveList',{'id':a,'name':'Hacked','occasion':'Anderes'},403)
  users[0].post('saveWish',{'id':wish,'listId':a,'title':'Hacked'},403)
@@ -126,6 +149,8 @@ with tempfile.TemporaryDirectory(prefix='mywish-http-') as temp:
  doc=pathlib.Path(temp)
  for dest in [doc,doc/'mywish']:
   shutil.copytree(ROOT,dest,dirs_exist_ok=True,ignore=shutil.ignore_patterns('.git','state.php','lock.php','tmp-*.php','config.php','.artifacts','__pycache__'))
+ for dest in [doc,doc/'mywish']:
+  (dest/'import-test.php').write_text("<?php require __DIR__.'/tests/fixtures/import-transport.php'; require __DIR__.'/index.php';")
  # Distinct stores for fresh root/subdirectory installs.
  sock=socket.socket(); sock.bind(('127.0.0.1',0)); port=sock.getsockname()[1]; sock.close()
  env=dict(os.environ,PHP_CLI_SERVER_WORKERS='4')

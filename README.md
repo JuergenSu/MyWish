@@ -9,7 +9,7 @@ Eine kleine, selbst gehostete Wunschwelt für Freunde und Familie. PHP 8.2+, HTM
 - Alle angemeldeten Nutzer sehen alle Listen. Genau ein Eigentümer bearbeitet eine Liste und ihre Wünsche. Andere Nutzer können eine Einheit pro Wunsch reservieren und ihre Reservierung wieder freigeben.
 - Der Eigentümer erhält **keine Reservierungsinformationen**, weder in HTML noch in JSON. Es gibt keine Adminrolle, privaten Listen, Kinderprofile oder Freigabelinks. Maßgeblich ist [Epic #3](https://github.com/JuergenSu/MyWish/issues/3); ältere Rollen-/Sharing-Anforderungen einzelner Tickets werden dadurch ersetzt.
 - Listen mit Anlass, Datum, Beschreibung und Cover; Wünsche mit optionalem Shoplink, Bild, EUR-Preis und Menge (1–99).
-- Optionaler Produktimport mit Vorschau (OpenGraph, JSON-LD, HTML-Titel). Eingaben prüfen und explizit speichern; ein manueller Wunsch funktioniert immer.
+- Optionaler Produktimport mit Vorschau (OpenGraph, JSON-LD, HTML-Titel und Amazon.de-Produktfelder). Eingaben prüfen und explizit speichern; ein manueller Wunsch funktioniert immer.
 - Meine Reservierungen, Suche über Listen/Anzeigenamen, mobile Oberfläche und Formulare ohne JavaScript.
 - Installationsbanner auf dem Handy: Android-Installationsdialog oder iPhone-Anleitung für den Home-Bildschirm; App-Manifest und lokale Icons, auch im Unterordner.
 
@@ -78,6 +78,7 @@ Registrierungsmodus ändern: In `config.php` `'registration' => 'open'` oder `'c
 - Listen-/Wunschlöschung entfernt zugehörige Reservierungen immer atomar. Mengenänderungen setzen **alle** Reservierungen dieses Wunsches zurück; die Regel gilt unabhängig davon, ob welche existieren. Eigentümer erhalten dadurch keine Statushinweise. Titel-/Preisänderungen behalten Reservierungen bei.
 - Der Überraschungsschutz gilt für das Eigentümerkonto. Absichtliche Zweitkonten können bei offener Registrierung fremde Ansichten verwenden. Gegenüber dem Serverbetreiber ist Speicherung nicht anonym.
 - Alle Listen sind für jedes angemeldete Konto sichtbar. Deshalb nur in einer vertrauenswürdigen Gruppe betreiben; keine vertraulichen Gesundheits-/Adressdaten eintragen.
+- Amazon.de: Produkt-Titel, sichtbare Produktmerkmale, aktueller Preis und Hauptbild werden gezielt ausgelesen; Streich-/Empfehlungspreise und Platzhalterbilder bleiben außen vor. Tracking-/Mobil-Links mit ASIN werden vereinheitlicht. Bei 503, Captcha oder fehlenden Daten erscheint eine klare manuelle Vorschau statt einer vermeintlich erfolgreichen Übernahme. Bereits ausgefüllte Felder bleiben erhalten, Bilder eines vorherigen Imports werden nicht übernommen.
 - Import ist Best-Effort, keine Preis- oder Verfügbarkeitsgarantie. Manche Shops blockieren automatisches Abrufen. V1 importiert nur öffentliche IPv4-Ziele auf Port 80/443; keine privaten Netze, SVGs oder aktiven Inhalte. Bilder werden lokal geprüft und gespeichert, nicht extern im Browser geladen.
 - Kleine private Installation: Ein JSON-State inklusive Base64-Bilder wird pro Anfrage geladen/validiert; keine Zusage für große Communities oder riesige Bildbestände.
 - Kontolöschung entfernt aktuelle Daten, nicht alte Betreiber-Backups. Betreiber bestimmt Speicherfrist und löscht abgelaufene Sicherungen.
