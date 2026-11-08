@@ -21,6 +21,8 @@ Für die Installation ist HTTPS nötig; localhost funktioniert für Entwicklung 
 
 `manifest.webmanifest`, `sw.js` und `assets/icons/` mitkopieren. Der Service Worker verwendet ausschließlich das Netzwerk und legt **keine Offline-Kopien** privater Daten an. Die App benötigt eine Internetverbindung. Login, Berechtigungen und Sicherheitsheader gelten unverändert. Ohne JavaScript oder bei normalen unverschlüsselten HTTP-Seiten bleibt der Installationshinweis ausgeblendet.
 
+Auf dem Startbildschirm erscheint das weiße Geschenk auf lila Hintergrund: Android nutzt die Manifest-Icons mit 192/512 px, iPhone das eigene Apple-Touch-Icon mit 180 px. Falls bereits eine ältere Verknüpfung mit einem anderen Icon besteht, diese entfernen und die App erneut zum Startbildschirm hinzufügen.
+
 ## Installation durch Kopieren
 
 1. PHP **8.2 oder neuer** aktivieren. Pflicht: JSON, Session, Filter, Hash, OpenSSL, Standardfunktionen inklusive `getimagesizefromstring`, `flock`, `rename`. Für Import zusätzlich cURL und DOM/libxml; mbstring und intl sind optional. GD/Imagick sind nicht nötig.
