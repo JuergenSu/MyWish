@@ -433,20 +433,38 @@ final class Metadata
             if ($error->reason!=='shop_unavailable') { throw $error; }
             $result=self::fallback($url);
             $warning=(self::amazon($target) ? 'Amazon liefert gerade keine auslesbaren Produktdaten. ' : $error->getMessage().' ')
-                .'Der Link wurde übernommen. Bitte Titel, Preis und Bild selbst ergänzen bzw. prüfen.';
+                .'Der Link wurde übernommen. Bitte Titel und Preis selbst ergänzen bzw. prüfen.';
             if ($result['title']!=='') { $warning.=' Der vorgeschlagene Titel stammt nur aus dem Link.'; }
         }
+        $amazonImage='';
+        if (self::amazon($result['productUrl']) && preg_match('~^/dp/([A-Z0-9]{10})$~',parse_url($result['productUrl'],PHP_URL_PATH) ?: '',$asin)) {
+            $amazonImage='https://m.media-amazon.com/images/P/'.$asin[1].'.01.L.jpg';
+        }
         $images=array_slice($result['imageUrls'] ?? [],0,self::MAX_IMAGE_ATTEMPTS);
+        if ($amazonImage!=='') {
+            // Einen der fünf Versuche und fünf Sekunden des Gesamtbudgets für den
+            // direkten Bildabruf reservieren. Keine zusätzlichen Hosts erraten.
+            $images=array_slice(array_values(array_filter($images,fn($src)=>$src!==$amazonImage)),0,self::MAX_IMAGE_ATTEMPTS-1);
+            $images[]=$amazonImage;
+        }
         foreach ($images as $imageUrl) {
-            if (microtime(true)>=$deadline) { break; }
+            $directAmazon=$imageUrl===$amazonImage;
+            $imageDeadline=$amazonImage!=='' && !$directAmazon ? $deadline-5 : $deadline;
+            if (microtime(true)>=$imageDeadline) { continue; }
             try {
-                $img=self::fetch($imageUrl,2*1024*1024,$deadline);
-                $_SESSION['importImage']=['at'=>time(),'image'=>App::imageBytes($img['body'])];
+                $img=self::fetch($imageUrl,2*1024*1024,$imageDeadline);
+                $image=App::imageBytes($img['body']);
+                if ($directAmazon) {
+                    $size=getimagesizefromstring($img['body']);
+                    if ($size[0]<64 || $size[1]<64) { throw new Problem(422,'Das Amazon-Bild ist nur ein Platzhalter.'); }
+                    $warning=trim($warning.' Ein Bild wurde anhand der Amazon-Artikelnummer gefunden. Bitte prüfen, ob es zum Artikel passt.');
+                }
+                $_SESSION['importImage']=['at'=>time(),'image'=>$image];
                 break;
             } catch (Problem) { /* Weiter mit dem nächsten Bild derselben Produktseite. */ }
         }
         if ($images && !isset($_SESSION['importImage'])) {
-            $warning=trim($warning.' Die gefundenen Produktbilder konnten nicht übernommen werden. Bitte eine Bildadresse oder ein eigenes Bild ergänzen.');
+            $warning=trim($warning.($amazonImage!=='' ? ' Das Amazon-Produktbild konnte nicht übernommen werden.' : ' Die gefundenen Produktbilder konnten nicht übernommen werden.').' Bitte eine Bildadresse oder ein eigenes Bild ergänzen.');
         } elseif (!$images && $warning==='') {
             $warning='Produktdaten übernommen, aber kein Produktbild gefunden. Bitte eine Bildadresse oder ein eigenes Bild ergänzen.';
         }

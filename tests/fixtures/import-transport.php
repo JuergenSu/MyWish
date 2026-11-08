@@ -1,12 +1,16 @@
 <?php
 // Ausschließlich vom isolierten HTTP-Test-Router geladen, nie von Anwendungscode.
 namespace MyWish;
-function gethostbynamel(string $host): array|false { return in_array($host,['www.amazon.de','images.example','shop.example'],true) ? ['93.184.216.34'] : false; }
+function gethostbynamel(string $host): array|false { return in_array($host,['www.amazon.de','m.media-amazon.com','images.example','shop.example'],true) ? ['93.184.216.34'] : false; }
 function curl_init(string $url): object { return (object)['url'=>$url,'options'=>[],'status'=>0]; }
 function curl_setopt_array(object $c,array $options): bool { $c->options=$options; return true; }
 function curl_exec(object $c): bool
 {
-    if (str_contains($c->url,'B000000503')) { $c->status=503; $body=''; }
+    if (str_starts_with($c->url,'https://m.media-amazon.com/')) {
+        $c->status=$c->url==='https://m.media-amazon.com/images/P/B0FCG8N5NC.01.L.jpg' ? 200 : 404;
+        $body=$c->status===200 ? require __DIR__.'/product-image.php' : '';
+    }
+    elseif (str_contains($c->url,'B000000503') || str_contains($c->url,'B0FCG8N5NC')) { $c->status=503; $body=''; }
     elseif ($c->url==='https://shop.example/product-large') {
         $c->status=200; $body=str_repeat(' ',5*1024*1024).'<title>Große Shopseite</title><meta property="og:image" content="https://images.example/broken.jpg"><div class="product-gallery"><img data-src="https://images.example/recovered.png"></div>';
     }

@@ -3,12 +3,14 @@ declare(strict_types=1);
 // Deterministischer Transport-Doppelgänger: Netzwerkpolitik wird ohne Fremdserver geprüft.
 namespace MyWish {
     $replies=[]; $calls=[];
-    function gethostbynamel(string $host): array|false { return match($host) { 'www.amazon.de'=>($GLOBALS['amazonPrivate'] ?? false) ? ['10.0.0.1'] : ['93.184.216.34'], 'images.example'=>['93.184.216.34'], 'shop.example'=>['93.184.216.34'], 'private.example'=>['93.184.216.34','10.0.0.1'], default=>false }; }
+    function gethostbynamel(string $host): array|false { return match($host) { 'www.amazon.de'=>($GLOBALS['amazonPrivate'] ?? false) ? ['10.0.0.1'] : ['93.184.216.34'], 'm.media-amazon.com'=>($GLOBALS['imagePrivate'] ?? false) ? ['93.184.216.34','10.0.0.1'] : ['93.184.216.34'], 'images.example','shop.example','amazon.de.attacker.example'=>['93.184.216.34'], 'private.example'=>['93.184.216.34','10.0.0.1'], default=>false }; }
+    function microtime(bool $as_float=false): string|float { return isset($GLOBALS['importClock']) ? ($as_float ? $GLOBALS['importClock'] : (string)$GLOBALS['importClock']) : \microtime($as_float); }
     function curl_init(string $url): object { return (object)['url'=>$url,'options'=>[],'status'=>0]; }
     function curl_setopt_array(object $c,array $options): bool { $c->options=$options; return true; }
     function curl_exec(object $c): bool {
         global $replies,$calls; $calls[]=$c;
         $r=array_shift($replies); if (!$r) { throw new \RuntimeException('Unexpected fetch'); }
+        if (isset($r['elapsed'])) { $GLOBALS['importClock']+=$r['elapsed']; }
         $c->status=$r['status'];
         foreach ($r['headers'] ?? [] as $k=>$v) { ($c->options[CURLOPT_HEADERFUNCTION])($c,$k.': '.$v."\r\n"); }
         if ($r['failure'] ?? false) { return false; }
@@ -72,18 +74,59 @@ namespace {
     $last=array_slice($GLOBALS['calls'],-2);
     verify($last[0]->url==='https://www.amazon.de/dp/B0FLM3M1JJ','Fetch canonical Amazon URL');
     verify($last[0]->options[CURLOPT_ENCODING]==='' && in_array('Accept-Language: de-DE,de;q=0.9,en;q=0.5',$last[0]->options[CURLOPT_HTTPHEADER],true),'Compression and German response requested');
-    $GLOBALS['replies']=[['status'=>503]];
+    $GLOBALS['replies']=[['status'=>503],['status'=>404]];
     $fallback=Metadata::preview($url);
     verify(!$fallback['hasImage'] && !isset($_SESSION['importImage']),'Previous image cleared on failed subsequent import');
     verify($fallback['productUrl']==='https://www.amazon.de/dp/B0FLM3M1JJ' && $fallback['price']==='' && $fallback['title']==='Orzly Lenkrader Kompatibel Joy Geschenkbox','503: link and slug proposal, no invented price');
     verify(str_contains($fallback['warning'],'Amazon') && str_contains($fallback['warning'],'nur aus dem Link'),'503 explicitly reported as manual fallback');
-    $GLOBALS['replies']=[['status'=>200,'body'=>file_get_contents(__DIR__.'/fixtures/amazon-captcha.html')]];
+    $GLOBALS['replies']=[['status'=>200,'body'=>file_get_contents(__DIR__.'/fixtures/amazon-captcha.html')],['status'=>404]];
     $captcha=Metadata::preview($url);
     verify($captcha['title']!=='Amazon.de' && $captcha['warning']!=='','Captcha page is not imported as product');
     $GLOBALS['replies']=[['status'=>302,'headers'=>['location'=>'http://127.0.0.1/private']]];
     blocked(fn()=>Metadata::preview($url));
     $GLOBALS['amazonPrivate']=true; blocked(fn()=>Metadata::preview($url)); $GLOBALS['amazonPrivate']=false;
     blocked(fn()=>Metadata::preview('https://www.amazon.de:8080/dp/B0FLM3M1JJ'));
+    $productImage=require __DIR__.'/fixtures/product-image.php';
+    $sonoff='https://www.amazon.de/SONOFF-SNZB-02LD-Temperatursensor/dp/B0FCG8N5NC?ref=test';
+    $GLOBALS['replies']=[['status'=>503],['status'=>200,'body'=>$productImage]];
+    $direct=Metadata::preview($sonoff); $last=array_slice($GLOBALS['calls'],-2);
+    verify($direct['hasImage'] && $direct['title']==='SONOFF SNZB 02LD Temperatursensor' && $direct['price']==='','503 still permits direct image preview without inventing product data');
+    verify($last[1]->url==='https://m.media-amazon.com/images/P/B0FCG8N5NC.01.L.jpg','Direct image URL uses only validated Amazon ASIN');
+    verify(str_contains($direct['warning'],'Amazon liefert gerade keine auslesbaren Produktdaten') && str_contains($direct['warning'],'Amazon-Artikelnummer') && str_contains($direct['warning'],'nur aus dem Link'),'Partial import explains unavailable product data, inferred title and image review');
+    verify(!str_contains($direct['warning'],'Bild selbst ergänzen') && !isset($direct['imageUrl'],$direct['imageUrls']),'Successful fallback has no misleading missing-image request or external image fields');
+    verify($_SESSION['importImage']['image']['data']===base64_encode($productImage),'Checked fallback bytes are held locally for explicit save');
+    $GLOBALS['replies']=[['status'=>200,'body'=>'<title>Produkt</title><meta property="og:image" content="https://images.example/broken.jpg">'],['status'=>404],['status'=>200,'body'=>$productImage]];
+    $direct=Metadata::preview($sonoff);
+    verify($direct['hasImage'] && str_contains($direct['warning'],'Amazon-Artikelnummer'),'Direct image follows failed metadata image');
+    $GLOBALS['replies']=[['status'=>200,'body'=>'<title>Produkt ohne Bild</title>'],['status'=>200,'body'=>$productImage]];
+    verify(Metadata::preview('https://m.amazon.de/gp/aw/d/b0fcg8n5nc/ref=test')['hasImage'],'Canonicalized mobile URL supports ASIN image fallback');
+    foreach ([
+        ['status'=>404],['status'=>200,'body'=>'<svg></svg>'],
+        ['status'=>200,'body'=>base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6C6sAAAAASUVORK5CYII=')],
+        ['status'=>200,'body'=>str_repeat('x',2*1024*1024+1)],
+        ['status'=>302,'headers'=>['location'=>'http://127.0.0.1/private']],
+    ] as $badImage) {
+        $_SESSION['importImage']=['at'=>time(),'image'=>['mime'=>'image/png','data'=>base64_encode($productImage)]];
+        $GLOBALS['replies']=[['status'=>503],$badImage]; $rejected=Metadata::preview($sonoff);
+        verify(!$rejected['hasImage'] && !isset($_SESSION['importImage']) && str_contains($rejected['warning'],'Amazon-Produktbild konnte nicht'),'Bad ASIN image is rejected without stale preview');
+    }
+    $GLOBALS['imagePrivate']=true; $GLOBALS['replies']=[['status'=>503]]; $before=count($GLOBALS['calls']);
+    verify(!Metadata::preview($sonoff)['hasImage'] && count($GLOBALS['calls'])===$before+1,'Private or mixed CDN DNS answer is blocked before image request');
+    $GLOBALS['imagePrivate']=false;
+    foreach (['https://amazon.de.attacker.example/dp/B0FCG8N5NC','https://www.amazon.de/search?q=B0FCG8N5NC','https://www.amazon.de/dp/B0FCG8N5NCX'] as $other) {
+        $GLOBALS['replies']=[['status'=>200,'body'=>'<title>Keine Produktseite</title>']]; $before=count($GLOBALS['calls']);
+        verify(!Metadata::preview($other)['hasImage'] && count($GLOBALS['calls'])===$before+1,'No guessed image for lookalike host, search result or invalid ASIN');
+    }
+    $manyAmazon='<title>Produkt</title>';
+    for ($i=0;$i<8;$i++) { $manyAmazon.='<meta property="og:image" content="https://images.example/fail-'.$i.'.jpg">'; }
+    $GLOBALS['replies']=array_merge([['status'=>200,'body'=>$manyAmazon]],array_fill(0,4,['status'=>404]),[['status'=>200,'body'=>$productImage]]);
+    $before=count($GLOBALS['calls']);
+    verify(Metadata::preview($sonoff)['hasImage'] && count($GLOBALS['calls'])===$before+6,'ASIN fallback keeps total image attempts bounded at five');
+    $GLOBALS['importClock']=100.0;
+    $GLOBALS['replies']=[['status'=>200,'body'=>$manyAmazon,'elapsed'=>10],['status'=>404,'elapsed'=>10],['status'=>200,'body'=>$productImage]];
+    $before=count($GLOBALS['calls']);
+    verify(Metadata::preview($sonoff)['hasImage'] && count($GLOBALS['calls'])===$before+3 && $GLOBALS['calls'][$before+2]->options[CURLOPT_TIMEOUT_MS]<=5000,'ASIN fallback retains five seconds when normal image requests exhaust their budget');
+    unset($GLOBALS['importClock']);
     $merged=Metadata::mergePreview($preview,['id'=>'','listId'=>'list','title'=>'Mein eigener Titel','description'=>'Eigene Beschreibung','price'=>'0','quantity'=>'2']);
     verify($merged['title']==='Mein eigener Titel' && $merged['description']==='Eigene Beschreibung' && $merged['price']==='0' && $merged['quantity']==='2','Manual values preserved, including zero price');
     verify(Metadata::mergePreview($preview,['title'=>' '])['title']===$parsed['title'],'Blank field receives preview');
