@@ -23,6 +23,12 @@ Für die Installation ist HTTPS nötig; localhost funktioniert für Entwicklung 
 
 Auf dem Startbildschirm erscheint das weiße Geschenk auf lila Hintergrund: Android nutzt die Manifest-Icons mit 192/512 px, iPhone das eigene Apple-Touch-Icon mit 180 px. Falls bereits eine ältere Verknüpfung mit einem anderen Icon besteht, diese entfernen und die App erneut zum Startbildschirm hinzufügen.
 
+## Fehlendes Bild ergänzen
+
+Wenn beim Wunsch kein Bild vorhanden ist, öffnet **Bei Google nach einem Bild suchen** einen neuen Tab mit Produktname und gegebenenfalls Amazon-Artikelnummer. Die Suche startet nur durch deinen Klick. Kopiere beim gewünschten Bild die direkte Bildadresse, füge sie in **Bildadresse** ein und wähle **Bild übernehmen**. Prüfe die Vorschau und speichere danach den Wunsch.
+
+Die Bilddatei wird serverseitig geprüft und lokal gespeichert; kein externes Hotlinking. Erlaubt sind JPEG/PNG/WebP bis 2 MB und 16 Megapixel. Private Netzwerkadressen, aktive Inhalte und unsichere Dateiprotokolle sind gesperrt. Alternativ bleibt der Datei-Upload verfügbar. Diese manuelle Google-Suche benötigt keinen API-Key und keine Google-Login-Konfiguration.
+
 ## Installation durch Kopieren
 
 1. PHP **8.2 oder neuer** aktivieren. Pflicht: JSON, Session, Filter, Hash, OpenSSL, Standardfunktionen inklusive `getimagesizefromstring`, `flock`, `rename`. Für Import zusätzlich cURL und DOM/libxml; mbstring und intl sind optional. GD/Imagick sind nicht nötig.

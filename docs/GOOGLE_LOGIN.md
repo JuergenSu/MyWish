@@ -30,7 +30,7 @@ Die echte URL inklusive HTTPS, Unterverzeichnis und Dateiname muss genau stimmen
 
 Alternativ das Secret über `MYWISH_GOOGLE_CLIENT_SECRET` bereitstellen, wie in der Beispielkonfiguration gezeigt. Das Secret gehört ausschließlich in die geschützte Serverkonfiguration bzw. Serverumgebung, niemals in JavaScript, Git, Issues oder Chat. `config.php` ist von Git ausgeschlossen. Dateizugriff auf den PHP-Benutzer begrenzen; PHP-Quelltext darf der Webserver nicht ausliefern.
 
-Alle drei Werte müssen gesetzt sein. Zusätzlich braucht PHP **cURL und OpenSSL**, funktionierende CA-Zertifikate und ausgehendes HTTPS zu `oauth2.googleapis.com` und `www.googleapis.com`. Der Browser wird nach einem Klick zu `accounts.google.com` weitergeleitet. Ohne vollständige Konfiguration bleibt der Google-Knopf ausgeblendet. Composer/Node/CLI auf dem Webspace sind nicht erforderlich; die JWT-Bibliothek ist mitgeliefert.
+Alle drei Werte müssen gesetzt sein. Wenn der Hoster PHP-Dateien dauerhaft per OPcache zwischenspeichert, nach Konfigurationsänderungen den PHP-Prozess bzw. OPcache über die Hosting-Einstellungen neu laden. Zusätzlich braucht PHP **cURL und OpenSSL**, funktionierende CA-Zertifikate und ausgehendes HTTPS zu `oauth2.googleapis.com` und `www.googleapis.com`. Der Browser wird nach einem Klick zu `accounts.google.com` weitergeleitet. Ohne vollständige Konfiguration bleibt der Google-Knopf ausgeblendet. Composer/Node/CLI auf dem Webspace sind nicht erforderlich; die JWT-Bibliothek ist mitgeliefert.
 
 ## 3. Anmelden und bestehende Konten verknüpfen
 

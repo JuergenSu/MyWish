@@ -285,4 +285,23 @@ final class Metadata
         }
         return $preview;
     }
+
+    public static function googleImagesUrl(string $title,string $productUrl=''): string
+    {
+        $query=self::clean($title);
+        if (self::amazon($productUrl) && preg_match('~/(?:dp|gp/product|gp/aw/d)/([A-Z0-9]{10})(?:/|$)~i',parse_url($productUrl,PHP_URL_PATH) ?: '',$m)) {
+            $query=trim($query.' '.strtoupper($m[1]));
+        }
+        return $query==='' ? 'https://www.google.com/imghp?hl=de' : 'https://www.google.com/search?'.http_build_query(['tbm'=>'isch','hl'=>'de','q'=>$query],'','&',PHP_QUERY_RFC3986);
+    }
+
+    public static function imagePreview(string $url): array
+    {
+        unset($_SESSION['importImage']);
+        App::webUrl($url);
+        if ($url==='') { throw new Problem(422,'Bitte die direkte Bildadresse einfügen.'); }
+        $response=self::fetch($url,2*1024*1024);
+        $_SESSION['importImage']=['at'=>time(),'image'=>App::imageBytes($response['body'])];
+        return ['hasImage'=>true,'warning'=>'','imageUrl'=>$url];
+    }
 }

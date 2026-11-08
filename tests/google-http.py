@@ -61,7 +61,7 @@ with tempfile.TemporaryDirectory(prefix='mywish-google-http-') as temp:
   (doc/folder.lstrip('/')/'config.php').write_text('<?php return ['+values+'];')
  for folder in ['', '/mywish']:config(folder)
  log=open(temp/'server.log','w')
- server=subprocess.Popen([PHP,'-d','opcache.enable_cli=0','-d','auto_prepend_file='+str(ROOT/'tests/fixtures/google-transport.php'),'-S',f'127.0.0.1:{port}','-t',str(doc)],env=dict(os.environ,MYWISH_GOOGLE_TEST_KEYS=str(keys)),stdout=log,stderr=log,start_new_session=True)
+ server=subprocess.Popen([PHP,'-d','opcache.enable=0','-d','opcache.enable_cli=0','-d','auto_prepend_file='+str(ROOT/'tests/fixtures/google-transport.php'),'-S',f'127.0.0.1:{port}','-t',str(doc)],env=dict(os.environ,MYWISH_GOOGLE_TEST_KEYS=str(keys)),stdout=log,stderr=log,start_new_session=True)
  try:
   for _ in range(100):
    try:urllib.request.urlopen(f'http://127.0.0.1:{port}/api/index.php?action=session',timeout=1);break

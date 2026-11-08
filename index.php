@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     try {
         $form=input(); $action=App::text($form,'action',30,true);
         $result=mutate($app,$action,$form);
-        if ($action==='import') {
+        if (in_array($action,['import','importImage'],true)) {
             $preview=$result; $page='wish';
             $form=MyWish\Metadata::mergePreview($result,$form);
             if ($result['hasImage']) { $form['useImportedImage']='yes'; }
@@ -28,7 +28,10 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
             if (in_array($action,['reserve','unreserve'],true) && ($form['returnPage'] ?? '')==='reservations') { $query='page=reservations'; }
             header('Location: '.url($query),true,303); exit;
         }
-    } catch (Throwable $ex) { [$status,$error]=safeError($ex); http_response_code($status); }
+    } catch (Throwable $ex) {
+        [$status,$error]=safeError($ex); http_response_code($status);
+        if (in_array($form['action'] ?? '',['import','importImage'],true) && !isset($_SESSION['importImage'])) { unset($form['useImportedImage']); }
+    }
     $settings=$app->settings();
 }
 if (!$settings) { $page='setup'; }
@@ -126,6 +129,9 @@ if (in_array($page,['setup','login','register'],true)):
 <div class="form-row"><?= field('price','Preis in EUR (optional)',$f['price'] ?? '','text',false,12) ?><?= field('quantity','Gewünschte Menge',$f['quantity'] ?? 1,'number',true,2) ?></div>
 <?php if ($id): ?><p class="field-help">Wenn du die Menge änderst, werden eventuell vorhandene Reservierungen zurückgesetzt. Dies geschieht unabhängig vom Reservierungsstand.</p><?php endif ?>
 <?php if (($f['useImportedImage'] ?? '')==='yes'): ?><?= hidden('useImportedImage','yes') ?><img class="image-preview" src="<?= e($base) ?>/media.php?type=preview" alt="Importierte Bildvorschau"><p class="field-help">Importiertes Bild wird beim Speichern übernommen.</p><?php endif ?>
+<div class="import-box"><label for="imageUrl">Bildadresse (optional)</label><div class="import-row"><input id="imageUrl" name="imageUrl" type="url" maxlength="2048" value="<?= e($f['imageUrl'] ?? '') ?>" placeholder="https://beispiel.de/produktbild.jpg"><button class="button secondary" name="action" value="importImage" formnovalidate>Bild übernehmen</button></div><p class="field-help">Die direkte Adresse einer JPEG-, PNG- oder WebP-Datei einfügen. Das Bild wird geprüft und lokal gespeichert.</p>
+<?php if (!(($f['useImportedImage'] ?? '')==='yes' || ($w['image'] ?? false))): ?><p class="image-search-help">Kein passendes Bild? <a id="google-image-search" href="<?= e(MyWish\Metadata::googleImagesUrl($f['title'] ?? '',$f['productUrl'] ?? '')) ?>" target="_blank" rel="noopener noreferrer"><?= icon('search') ?>Bei Google nach einem Bild suchen<span class="sr-only"> (öffnet neuen Tab)</span></a></p><p class="field-help">Wähle ein passendes Bild, kopiere dessen Bildadresse und füge sie hier ein. Alternativ kannst du unten ein eigenes Bild hochladen.</p><?php endif ?>
+</div>
 <?= imageField($w['image'] ?? false) ?>
 <div class="form-actions"><button class="button primary" name="action" value="saveWish">Wunsch speichern</button><a class="button secondary" href="<?= e(url('page=list&id='.$listId)) ?>">Abbrechen</a></div></form>
 <?php if ($id): ?><details class="danger-zone narrow"><summary>Wunsch löschen</summary><p>Der Wunsch und eventuell vorhandene Reservierungen werden endgültig entfernt.</p><form method="post"><?= csrf() ?><?= hidden('action','deleteWish') ?><?= hidden('id',$id) ?><label class="check"><input type="checkbox" name="confirm" value="yes" required>Endgültige Löschung bestätigen</label><button class="button danger">Wunsch löschen</button></form></details><?php endif ?>

@@ -204,6 +204,38 @@ fs.mkdirSync(artifacts, { recursive: true });
     await page
       .getByRole("button", { name: "Wunsch speichern", exact: true })
       .click();
+    const imageOwner = await browser.newContext({
+      storageState: await owner.storageState(),
+    });
+    const imagePage = await imageOwner.newPage();
+    const unexpectedImageRequests = [];
+    imagePage.on("request", (request) => {
+      if (!request.url().startsWith(`http://127.0.0.1:${port}`))
+        unexpectedImageRequests.push(request.url());
+    });
+    await imagePage.goto(
+      base + "?page=wish&listId=" + new URL(listUrl).searchParams.get("id"),
+    );
+    await imagePage
+      .getByLabel("Dein Wunsch", { exact: true })
+      .fill("Orzly Lenkräder");
+    await imagePage
+      .locator("#productUrl")
+      .fill("https://www.amazon.de/dp/B0FLM3M1JJ/");
+    const search = imagePage.locator("#google-image-search");
+    const target = new URL(await search.getAttribute("href"));
+    assert.equal(target.origin, "https://www.google.com");
+    assert.equal(target.searchParams.get("q"), "Orzly Lenkräder B0FLM3M1JJ");
+    assert.equal(target.searchParams.get("tbm"), "isch");
+    assert.equal(await search.getAttribute("target"), "_blank");
+    assert.match(await search.getAttribute("rel"), /noreferrer/);
+    assert.deepEqual(
+      unexpectedImageRequests,
+      [],
+      "No automatic Google requests while typing",
+    );
+    await audit(imagePage, "manual-image-search");
+    await imageOwner.close();
     await page.goto(base);
     const giver = await browser.newContext({
       viewport: { width: 1440, height: 1000 },

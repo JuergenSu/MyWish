@@ -111,3 +111,42 @@ document.querySelectorAll("form").forEach((form) => {
     }
   });
 });
+
+// Die externe Suche startet erst beim bewussten Klick, nicht beim Tippen.
+const imageSearch = document.getElementById("google-image-search");
+if (imageSearch) {
+  const form = imageSearch.closest("form");
+  const updateImageSearch = () => {
+    let query = form.elements.title.value.trim();
+    try {
+      const product = new URL(form.elements.productUrl.value);
+      if (
+        [
+          "amazon.de",
+          "www.amazon.de",
+          "m.amazon.de",
+          "smile.amazon.de",
+        ].includes(product.hostname.toLowerCase())
+      ) {
+        const asin = product.pathname.match(
+          /\/(?:dp|gp\/product|gp\/aw\/d)\/([a-z0-9]{10})(?:\/|$)/i,
+        );
+        if (asin) query = `${query} ${asin[1].toUpperCase()}`.trim();
+      }
+    } catch {
+      /* Ohne gültigen Shop-Link reicht der eingegebene Titel. */
+    }
+    const target = new URL(
+      query ? "https://www.google.com/search" : "https://www.google.com/imghp",
+    );
+    target.searchParams.set("hl", "de");
+    if (query) {
+      target.searchParams.set("tbm", "isch");
+      target.searchParams.set("q", query);
+    }
+    imageSearch.href = target.href;
+  };
+  form.elements.title.addEventListener("input", updateImageSearch);
+  form.elements.productUrl.addEventListener("input", updateImageSearch);
+  updateImageSearch();
+}

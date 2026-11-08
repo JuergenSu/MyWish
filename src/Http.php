@@ -23,6 +23,11 @@ function mutate(App $app,string $action,array $in): array
     $csrf=$_SERVER['HTTP_X_CSRF_TOKEN'] ?? ($in['csrf'] ?? '');
     if (!is_string($csrf) || !hash_equals($_SESSION['csrf'],$csrf)) { throw new Problem(403,'Das Formular ist abgelaufen. Bitte die Seite neu laden und erneut versuchen.'); }
     if ($action==='import') { return Metadata::preview(App::webUrl(App::text($in,'productUrl',2048,true))); }
+    if ($action==='importImage') {
+        $result=Metadata::imagePreview(App::webUrl(App::text($in,'imageUrl',2048,true)));
+        $result['productUrl']=App::webUrl(App::text($in,'productUrl',2048));
+        return $result;
+    }
     return $app->act($action,$in);
 }
 function safeError(Throwable $e): array

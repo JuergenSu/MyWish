@@ -85,5 +85,14 @@ namespace {
     $merged=Metadata::mergePreview($preview,['id'=>'','listId'=>'list','title'=>'Mein eigener Titel','description'=>'Eigene Beschreibung','price'=>'0','quantity'=>'2']);
     verify($merged['title']==='Mein eigener Titel' && $merged['description']==='Eigene Beschreibung' && $merged['price']==='0' && $merged['quantity']==='2','Manual values preserved, including zero price');
     verify(Metadata::mergePreview($preview,['title'=>' '])['title']===$parsed['title'],'Blank field receives preview');
+    $search=Metadata::googleImagesUrl('Orzly Lenkräder',$url); parse_str(parse_url($search,PHP_URL_QUERY),$searchParams);
+    verify(parse_url($search,PHP_URL_HOST)==='www.google.com' && $searchParams['tbm']==='isch' && $searchParams['q']==='Orzly Lenkräder B0FLM3M1JJ','Explicit Google image search with product title and ASIN');
+    verify(Metadata::googleImagesUrl('')==='https://www.google.com/imghp?hl=de','Manual search when title is empty');
+    $GLOBALS['replies']=[['status'=>200,'body'=>base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6C6sAAAAASUVORK5CYII=')]];
+    verify(Metadata::imagePreview('https://images.example/manual.png')['hasImage'] && isset($_SESSION['importImage']),'Manual image address becomes checked local preview');
+    blocked(fn()=>Metadata::imagePreview('http://127.0.0.1/private.png'));
+    verify(!isset($_SESSION['importImage']),'Rejected manual image does not reuse prior preview');
+    $GLOBALS['replies']=[['status'=>200,'body'=>'<svg onload="alert(1)"></svg>']];blocked(fn()=>Metadata::imagePreview('https://images.example/manual.svg'));
+    $GLOBALS['replies']=[['status'=>200,'body'=>str_repeat('x',2*1024*1024+1)]];blocked(fn()=>Metadata::imagePreview('https://images.example/too-large.png'));
     echo "OK: $checks import transport checks\n";
 }
