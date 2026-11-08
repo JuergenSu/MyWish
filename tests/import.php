@@ -95,6 +95,14 @@ namespace {
     verify(str_contains($direct['warning'],'Amazon liefert gerade keine auslesbaren Produktdaten') && str_contains($direct['warning'],'Amazon-Artikelnummer') && str_contains($direct['warning'],'nur aus dem Link'),'Partial import explains unavailable product data, inferred title and image review');
     verify(!str_contains($direct['warning'],'Bild selbst ergänzen') && !isset($direct['imageUrl'],$direct['imageUrls']),'Successful fallback has no misleading missing-image request or external image fields');
     verify($_SESSION['importImage']['image']['data']===base64_encode($productImage),'Checked fallback bytes are held locally for explicit save');
+    // Reales Antwortformat des gemeldeten Toasters: HTTP 200, aber 1x1-GIF an .jpg-Adresse.
+    $pixelGif=base64_decode('R0lGODlhAQABAIABAAAAAP///yH5BAEAAAEALAAAAAABAAEAAAICTAEAOw==');
+    $GLOBALS['replies']=[['status'=>503],['status'=>200,'headers'=>['content-type'=>'image/gif'],'body'=>$pixelGif]];
+    $toaster=Metadata::preview('https://www.amazon.de/Cuisinart-Farb-Touchscreen-Toaster/dp/B0G1586BZG/?th=1');
+    verify(!$toaster['hasImage'] && !isset($_SESSION['importImage']) && $toaster['price']==='','Amazon HTTP 200 placeholder does not masquerade as a product image or reuse a prior image');
+    verify(str_contains($toaster['warning'],'Platzhalter (1 × 1 Pixel)') && !str_contains($toaster['warning'],'Ungültiges Bild'),'Explain actual Amazon placeholder before rejecting its GIF format');
+    $GLOBALS['replies']=[['status'=>503],['status'=>403]];
+    verify(str_contains(Metadata::preview($sonoff)['warning'],'HTTP 403'),'Failed fallback exposes HTTP status without response body or credentials');
     $GLOBALS['replies']=[['status'=>200,'body'=>'<title>Produkt</title><meta property="og:image" content="https://images.example/broken.jpg">'],['status'=>404],['status'=>200,'body'=>$productImage]];
     $direct=Metadata::preview($sonoff);
     verify($direct['hasImage'] && str_contains($direct['warning'],'Amazon-Artikelnummer'),'Direct image follows failed metadata image');

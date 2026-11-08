@@ -98,7 +98,7 @@ final class Metadata
             if ($tooLarge) { throw self::unavailable('Die Shop-Antwort überschreitet die Importgrenze von '.($max/1024/1024).' MB. Bitte manuell ergänzen.'); }
             if ($ok===false) { throw self::unavailable('Shop-Antwort nicht lesbar. Bitte manuell ausfüllen.'); }
             if ($status>=300 && $status<400 && isset($headers['location'])) { $url=self::resolveUrl($url,$headers['location']); continue; }
-            if ($status!==200) { throw self::unavailable('Der Shop erlaubt gerade keinen Import. Bitte manuell ausfüllen.'); }
+            if ($status!==200) { throw self::unavailable('Der Abruf wurde mit HTTP '.$status.' abgelehnt. Bitte manuell ergänzen.'); }
             return ['body'=>$body,'type'=>$headers['content-type'] ?? '', 'url'=>$url];
         }
         throw self::unavailable('Zu viele Weiterleitungen. Bitte manuell ausfüllen.');
@@ -447,24 +447,31 @@ final class Metadata
             $images=array_slice(array_values(array_filter($images,fn($src)=>$src!==$amazonImage)),0,self::MAX_IMAGE_ATTEMPTS-1);
             $images[]=$amazonImage;
         }
+        $amazonImageError='';
         foreach ($images as $imageUrl) {
             $directAmazon=$imageUrl===$amazonImage;
             $imageDeadline=$amazonImage!=='' && !$directAmazon ? $deadline-5 : $deadline;
             if (microtime(true)>=$imageDeadline) { continue; }
             try {
                 $img=self::fetch($imageUrl,2*1024*1024,$imageDeadline);
+                if ($directAmazon) {
+                    // Amazon liefert teils HTTP 200 mit einem 1x1-GIF, obwohl die
+                    // Adresse auf .jpg endet. Vor der Formatprüfung erklären.
+                    $size=@getimagesizefromstring($img['body']);
+                    if ($size && ($size[0]<64 || $size[1]<64)) { throw new Problem(422,'Amazon liefert unter dieser Bildadresse nur einen Platzhalter ('.$size[0].' × '.$size[1].' Pixel).'); }
+                }
                 $image=App::imageBytes($img['body']);
                 if ($directAmazon) {
-                    $size=getimagesizefromstring($img['body']);
-                    if ($size[0]<64 || $size[1]<64) { throw new Problem(422,'Das Amazon-Bild ist nur ein Platzhalter.'); }
                     $warning=trim($warning.' Ein Bild wurde anhand der Amazon-Artikelnummer gefunden. Bitte prüfen, ob es zum Artikel passt.');
                 }
                 $_SESSION['importImage']=['at'=>time(),'image'=>$image];
                 break;
-            } catch (Problem) { /* Weiter mit dem nächsten Bild derselben Produktseite. */ }
+            } catch (Problem $error) {
+                if ($directAmazon) { $amazonImageError=$error->getMessage(); }
+            }
         }
         if ($images && !isset($_SESSION['importImage'])) {
-            $warning=trim($warning.($amazonImage!=='' ? ' Das Amazon-Produktbild konnte nicht übernommen werden.' : ' Die gefundenen Produktbilder konnten nicht übernommen werden.').' Bitte eine Bildadresse oder ein eigenes Bild ergänzen.');
+            $warning=trim($warning.($amazonImage!=='' ? ' Das Amazon-Produktbild konnte nicht übernommen werden. '.$amazonImageError : ' Die gefundenen Produktbilder konnten nicht übernommen werden.').' Bitte eine Bildadresse oder ein eigenes Bild ergänzen.');
         } elseif (!$images && $warning==='') {
             $warning='Produktdaten übernommen, aber kein Produktbild gefunden. Bitte eine Bildadresse oder ein eigenes Bild ergänzen.';
         }

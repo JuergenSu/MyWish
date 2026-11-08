@@ -7,10 +7,11 @@ function curl_setopt_array(object $c,array $options): bool { $c->options=$option
 function curl_exec(object $c): bool
 {
     if (str_starts_with($c->url,'https://m.media-amazon.com/')) {
-        $c->status=$c->url==='https://m.media-amazon.com/images/P/B0FCG8N5NC.01.L.jpg' ? 200 : 404;
-        $body=$c->status===200 ? require __DIR__.'/product-image.php' : '';
+        $placeholder=$c->url==='https://m.media-amazon.com/images/P/B0G1586BZG.01.L.jpg';
+        $c->status=$placeholder || $c->url==='https://m.media-amazon.com/images/P/B0FCG8N5NC.01.L.jpg' ? 200 : 404;
+        $body=$placeholder ? base64_decode('R0lGODlhAQABAIABAAAAAP///yH5BAEAAAEALAAAAAABAAEAAAICTAEAOw==') : ($c->status===200 ? require __DIR__.'/product-image.php' : '');
     }
-    elseif (str_contains($c->url,'B000000503') || str_contains($c->url,'B0FCG8N5NC')) { $c->status=503; $body=''; }
+    elseif (str_contains($c->url,'B000000503') || str_contains($c->url,'B0FCG8N5NC') || str_contains($c->url,'B0G1586BZG')) { $c->status=503; $body=''; }
     elseif ($c->url==='https://shop.example/product-large') {
         $c->status=200; $body=str_repeat(' ',5*1024*1024).'<title>Große Shopseite</title><meta property="og:image" content="https://images.example/broken.jpg"><div class="product-gallery"><img data-src="https://images.example/recovered.png"></div>';
     }
