@@ -23,8 +23,10 @@ try {
     check($_SESSION['importImage']['image']['sourceUrl']===$result['imageSourceUrl'],'Attribution belongs to checked image, not editable hidden input');
     $call=apiCalls()[0]; $payload=json_decode($call->options[CURLOPT_POSTFIELDS],true); $input=json_decode($payload['input'],true);
     check($input['product_url']==='https://www.amazon.de/dp/B0G1586BZG' && !str_contains($payload['input'],'secret'),'Product tracking and fragment stripped from OpenAI input');
-    check($payload['model']===$config['model'] && $payload['store']===false && $payload['max_tool_calls']===1,'Configured model, no response storage and one search maximum');
-    check($payload['tools'][0]['search_content_types']===['image','text'] && $payload['include']===['web_search_call.results'],'Documented Responses image search with raw results');
+    check($payload['model']===$config['model'] && $payload['store']===false && $payload['max_tool_calls']===2,'Configured model, no response storage and bounded specific/broad search');
+    check($payload['tools'][0]['search_content_types']===['image','text'] && $payload['include']===['web_search_call.results','web_search_call.action.sources'],'Documented Responses image search with raw results and source pages');
+    check(str_contains($payload['instructions'],'similar product is acceptable') && str_contains($payload['instructions'],'generic product category'),'Prompt allows approximate product photos and a category-only search');
+    check(str_contains($result['warning'],'abweichen'),'Every AI image proposal explicitly warns about possible product differences');
     check($call->options[CURLOPT_FOLLOWLOCATION]===false && $call->options[CURLOPT_PROTOCOLS]===CURLPROTO_HTTPS && $call->options[CURLOPT_SSL_VERIFYPEER] && $call->options[CURLOPT_TIMEOUT_MS]<=20000,'Bounded fixed HTTPS API endpoint without redirects');
     check(in_array('Authorization: Bearer sk-test-server-key',$call->options[CURLOPT_HTTPHEADER],true),'Server configuration supplies API key');
     foreach ($GLOBALS['openaiCalls'] as $c) {
@@ -36,12 +38,32 @@ try {
     $raw=file_get_contents($dir.'/openai-search.php');
     check(str_starts_with($raw,Store::GUARD) && !str_contains($raw,'sk-test-server-key') && !str_contains($raw,'tracking'),'Protected cache contains no API key or tracking parameters');
     clearCache($dir);
+    $oldKey=hash('sha256',$config['model']."\0Product\0");
+    file_put_contents($dir.'/openai-search.php',Store::GUARD.json_encode(['day'=>gmdate('Y-m-d'),'used'=>1,'users'=>[],'cache'=>[$oldKey=>['until'=>time()+600,'results'=>[]]]]));
+    $before=count(apiCalls());check($search->preview('Product','',str_repeat('a',32))['hasImage'] && count(apiCalls())===$before+1,'Previous empty search cache cannot hide new broader-search results');
+    $newState=json_decode(substr(file_get_contents($dir.'/openai-search.php'),strlen(Store::GUARD)),true);
+    check($newState['used']===2,'Strategy change preserves existing daily usage');
+    clearCache($dir);
     check(!$search->preview('text-only','',str_repeat('a',32))['hasImage'],'Free model text is never treated as an image URL');
     check(!isset($_SESSION['importImage']),'No matches clear previous preview');
     clearCache($dir);
     check($search->preview('unsafe-first','',str_repeat('a',32))['hasImage'],'Private first image is blocked before safe candidate succeeds');
     clearCache($dir);
     check(!$search->preview('fail-download','',str_repeat('a',32))['hasImage'],'Unsupported image content rejected');
+    foreach (['source-only','citation-only','source-private-first'] as $title) {
+        clearCache($dir);$result=$search->preview($title,'',str_repeat('a',32));
+        check($result['hasImage'] && $result['imageSourceUrl']==='https://shop.example/with-image','Find product image through structured source page: '.$title);
+    }
+    clearCache($dir);$result=$search->preview('source-after-broken','',str_repeat('a',32));
+    check($result['hasImage'] && $result['imageSourceUrl']==='https://shop.example/with-image','Source-page fallback retains download budget after broken direct images');
+    foreach ($GLOBALS['openaiCalls'] as $c) {
+        if ($c->url==='https://api.openai.com/v1/responses') { continue; }
+        check(!str_contains(implode('\n',$c->options[CURLOPT_HTTPHEADER]),'sk-test-server-key'),'No key on source-page or image downloads');
+    }
+    clearCache($dir);$missing=$search->preview('source-no-images','',str_repeat('a',32));
+    check(!$missing['hasImage'] && str_contains($missing['warning'],'Quellen gefunden'),'Distinguish discovered pages without downloadable images from empty search');
+    clearCache($dir);$message=rejected(fn()=>$search->preview('no-tool','',str_repeat('a',32)),503);
+    check(str_contains($message,'keine Websuche ausgeführt'),'Missing tool execution is an explicit provider error');
     clearCache($dir);
     $message=rejected(fn()=>$search->preview('provider-error','',str_repeat('a',32)),503);
     check(str_contains($message,'HTTP 401') && !str_contains($message,'sk-test'),'Provider error bodies and secrets never reflected');
