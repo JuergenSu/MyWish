@@ -12,6 +12,14 @@ function check(bool $value,string $label): void { global $checks; if (!$value) {
 function rejects(callable $fn,int $status): void { try { $fn(); } catch (Problem $e) { check($e->status===$status,'Status '.$e->status.' != '.$status); return; } throw new RuntimeException('Expected rejection'); }
 $dir=sys_get_temp_dir().'/mywish-unit-'.bin2hex(random_bytes(6)); mkdir($dir,0700);
 try {
+    foreach (['abcdefg!', '1234567#', 'äöüßéab!', 'abcdefg€', 'abcdefg🎁', str_repeat('a',71).'!'] as $pass) {
+        check(App::password(['password'=>$pass])===$pass, 'Valid password returned unchanged');
+    }
+    foreach ([null, [], 12345678, '', 'abcdef!', 'äöüßéa!', 'abcdefgh', '12345678', 'abcdefgh ', 'äöüßéabc', "abcdefg\0!", "abcdefg\xFF!", str_repeat('a',72).'!'] as $pass) {
+        rejects(fn()=>App::password(['password'=>$pass]),422);
+    }
+    check(App::password(['newPassword'=>'abcdefg!'],'newPassword')==='abcdefg!','Password change uses same policy');
+    rejects(fn()=>App::password(['newPassword'=>'abcdefgh'],'newPassword'),422);
     check(App::money('39,99')===3999,'Cent conversion'); check(App::money('0')===0,'Zero price'); check(App::money('')===null,'No price'); check(App::money('9.9')===990,'Decimal');
     foreach (['-1','1.001','1,000.50','nan'] as $bad) { rejects(fn()=>App::money($bad),422); }
     foreach (['file:///etc/passwd','javascript:alert(1)','https://user:pass@example.com'] as $bad) { rejects(fn()=>App::webUrl($bad),422); }

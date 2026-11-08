@@ -24,6 +24,9 @@ function hidden(string $key,string $value): string { return '<input type="hidden
 function field(string $name,string $label,mixed $value='',string $type='text',bool $required=false,int $max=200,string $autocomplete=''): string
 {
     $extra=$type==='number' ? ' min="1" max="99" step="1"' : ' maxlength="'.$max.'"';
+    if ($type==='password' && $autocomplete==='new-password') {
+        $extra.=' minlength="8" pattern="(?=.*[\p{P}\p{S}]).{8,}" title="'.e(MyWish\App::PASSWORD_HINT).'"';
+    }
     return '<label>'.e($label).'<input name="'.e($name).'" type="'.e($type).'" value="'.e(is_scalar($value) ? $value : '').'"'.($required ? ' required' : '').$extra.($autocomplete ? ' autocomplete="'.e($autocomplete).'"' : '').($name==='price' ? ' inputmode="decimal"' : '').'></label>';
 }
 function textarea(string $name,string $label,mixed $value): string { return '<label>'.e($label).'<textarea name="'.e($name).'" rows="4" maxlength="4000">'.e(is_scalar($value) ? $value : '').'</textarea></label>'; }
