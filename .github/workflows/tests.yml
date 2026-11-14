@@ -32,6 +32,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      # Ubuntu 24.04 ships PHP 8.3 CGI. Install it before setup-php selects CLI 8.2.
+      - name: Install Apache and native PHP-CGI for copy deployment checks
+        run: sudo apt-get update && sudo apt-get install -y apache2 php8.3-cgi php8.3-curl php8.3-gd php8.3-xml php8.3-mbstring
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
@@ -41,12 +44,10 @@ jobs:
           node-version: '22'
       - run: npm install --no-save playwright@1.58.2 axe-core@4.11.1
       - run: npx playwright install --with-deps chromium
-      - name: Install Apache and PHP-CGI for copy deployment checks
-        run: sudo apt-get update && sudo apt-get install -y apache2 php8.2-cgi
       - name: Browser migration with real .htaccess protection
         run: python3 tests/web-migration.py
         env:
-          PHP_CGI_BIN: /usr/bin/php-cgi8.2
+          PHP_CGI_BIN: /usr/bin/php-cgi8.3
           MYWISH_WEB_MIGRATION_BROWSER: '1'
       - run: node tests/browser.cjs
       - run: node tests/install-banner.cjs

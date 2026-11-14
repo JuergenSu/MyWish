@@ -263,7 +263,7 @@ with tempfile.TemporaryDirectory(prefix='mywish-http-') as temp:
  sock=socket.socket(); sock.bind(('127.0.0.1',0)); port=sock.getsockname()[1]; sock.close()
  env=dict(os.environ,PHP_CLI_SERVER_WORKERS='4')
  log=open(doc/'server.log','w')
- process=subprocess.Popen([PHP,'-d','upload_max_filesize=8M','-d','post_max_size=10M','-S',f'127.0.0.1:{port}','-t',str(doc)],env=env,stdout=log,stderr=log,start_new_session=True)
+ process=subprocess.Popen([PHP,'-d','opcache.enable=0','-d','opcache.enable_cli=0','-d','upload_max_filesize=8M','-d','post_max_size=10M','-S',f'127.0.0.1:{port}','-t',str(doc)],env=env,stdout=log,stderr=log,start_new_session=True)
  try:
   for i in range(100):
    try:
