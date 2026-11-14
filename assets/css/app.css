@@ -1723,3 +1723,20 @@ legend {
     margin-top: 8px;
   }
 }
+
+.admin-statistics {
+  margin-block: 24px;
+}
+.admin-statistics > div {
+  padding: 24px;
+  min-width: 0;
+}
+.admin-statistics dt {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.admin-statistics dd {
+  margin: 12px 0 0;
+  font-size: 2rem;
+  font-weight: 700;
+}

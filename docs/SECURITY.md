@@ -54,3 +54,7 @@ Dauerhafte Bilder werden nicht mehr als Base64 in JSON gespeichert. JSON-Sammlun
 Die Migration prüft alte Schemata 1–3, sichert die ursprünglichen Bytes und verifiziert alle neuen JSON-/Bildreferenzen vor dem Umschalten. Die alte Datei erhält einen Schema-4-Verweis, den alter Code ablehnt. Sitzungen, Konten und Reservierungen bleiben erhalten. Beschädigte Daten werden nicht still durch vorherige Generationen oder leere Dateien ersetzt. Für konsistente Verzeichnissicherungen sperrt das CLI-Werkzeug Schreibvorgänge; laufende ungefilterte SFTP-Kopien sind nicht konsistent. [Details](STORAGE.md).
 
 Der einmalige Browser-Migrationslauf erlaubt nur die festgelegte Schema-Umstellung unter Lock, per CSRF-geschütztem POST und ohne frei wählbare Pfade oder Datenausgabe. Nach vollständiger Verifikation sperrt eine geschützte Abschlussmarkierung weitere Läufe; das Skript löscht sich. Scheitert die Löschung, wird ausdrücklich zum Entfernen aufgefordert.
+
+## Admin-Statistik
+
+`isAdmin` ist ein optionales, streng boolesches Benutzerfeld in Schema 4; fehlende Werte gelten als false. Nur Betreiberwerkzeuge können es vergeben. Neue Konten über Setup, Registrierung oder Google erhalten false; Kontoformulare übernehmen das Feld nicht. Jede Statistikabfrage prüft den aktuellen Datensatz und die Sitzungsversion unter Lesesperre. Ein entzogenes Flag wirkt sofort. Die Seite akzeptiert nur GET/HEAD, zeigt keine Reservierungszahlen oder personenbezogene Details und erweitert keine Rechte an fremden Listen.

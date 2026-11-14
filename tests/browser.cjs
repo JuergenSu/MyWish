@@ -3,7 +3,7 @@ const { chromium } = require("playwright");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { spawn } = require("node:child_process");
+const { spawn, execFileSync } = require("node:child_process");
 const assert = require("node:assert/strict");
 const net = require("node:net");
 const root = path.resolve(__dirname, "..");
@@ -458,6 +458,27 @@ fs.mkdirSync(artifacts, { recursive: true });
     await page.goto(listUrl);
     assert.equal(await page.locator(".availability").count(), 0);
     assert.deepEqual(external, [], "No external app requests");
+    await page.goto(base + "?page=admin");
+    assert.equal(await page.locator(".admin-statistics").count(), 0);
+    function adminRole(flag) {
+      execFileSync(process.env.PHP_BIN || "php", [
+        path.join(doc, "tools/set-admin.php"),
+        "--web-root=" + web,
+        "--username=antonia",
+        flag,
+      ]);
+    }
+    adminRole("--enable");
+    await page.goto(base + "?page=account");
+    await page
+      .locator("main")
+      .getByRole("link", { name: "Admin-Statistik", exact: true })
+      .click();
+    assert.equal(await page.locator(".admin-statistics dt").count(), 12);
+    assert.equal(await page.locator("main form").count(), 0);
+    await audit(page, "admin-statistics");
+    adminRole("--disable");
+    assert.equal((await page.goto(base + "?page=admin")).status(), 403);
     // Native controls, skip link and logical keyboard order.
     await gift.goto(base);
     await gift.keyboard.press("Tab");

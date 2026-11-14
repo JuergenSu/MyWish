@@ -295,6 +295,29 @@ with tempfile.TemporaryDirectory(prefix='mywish-http-') as temp:
    return client.request('api/index.php?action=setup',json.dumps(payload).encode(),{'Content-Type':'application/json','X-CSRF-Token':client.csrf})[0]
   with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool: codes=list(pool.map(initialize,starters))
   check(sorted(codes)==[201,409],'Atomic first setup: '+str(codes))
+  # Admin role is server-owned; page access is checked afresh on every request.
+  admin=Client(f'http://127.0.0.1:{port}/setup-race/')
+  admin.post('login',{'username':'first','password':'Setup123'})
+  check(admin.request('index.php?page=admin')[0]==403,'Normal user cannot open statistics')
+  outsider=Client(admin.base)
+  check(b'ADMIN-BEREICH' not in outsider.request('index.php?page=admin')[1],'Anonymous user receives no statistics')
+  outsider.post('register',{'name':'Regular','username':'regular','password':'abcdefgh','isAdmin':True},201)
+  check(outsider.get('state')[1]['data']['user']['isAdmin'] is False,'Registration cannot assign admin rights')
+  admin.post('account',{'name':'First','currentPassword':'Setup123','newPassword':'','isAdmin':True})
+  check(admin.get('state')[1]['data']['user']['isAdmin'] is False,'Account changes cannot promote users')
+  def role(flag):
+   return subprocess.run([PHP,str(race/'tools/set-admin.php'),'--web-root='+str(doc),'--username=first',flag],check=True,capture_output=True)
+  role('--enable')
+  manifest=data_directory(race/'storage')/'manifest.json';before=manifest.read_bytes()
+  code,html,_=admin.request('index.php?page=admin')
+  check(code==200 and b'ADMIN-BEREICH' in html and html.count(b'<dt>')==12,'Granted role opens aggregate statistics without a new login')
+  check(b'<form' not in html and b'Admin-Statistik' in html,'Statistics page has navigation but no mutation forms')
+  check(manifest.read_bytes()==before,'Statistics GET performs no dataset writes')
+  code,_,headers=admin.request('index.php?page=admin',urllib.parse.urlencode({'action':'deleteAccount','confirm':'yes','csrf':admin.csrf,'currentPassword':'Setup123'}).encode(),{'Content-Type':'application/x-www-form-urlencoded'})
+  check(code==405 and headers.get('Allow')=='GET, HEAD' and manifest.read_bytes()==before,'POST to admin page is rejected without mutations')
+  check(outsider.request('index.php?page=admin')[0]==403,'Other authenticated user remains denied')
+  check(outsider.request('tools/set-admin.php')[0]==404,'Role assignment tool cannot run over HTTP')
+  role('--disable');check(admin.request('index.php?page=admin')[0]==403,'Revocation applies to an existing session immediately')
   # A hash from the previous policy remains valid without a special character.
   legacy_file=race/'storage/state.php'
   guard=legacy_file.read_text().split('\n',1)[0]

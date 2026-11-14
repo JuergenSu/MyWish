@@ -1,6 +1,6 @@
 # JSON-API
 
-`api/index.php?action=…`, keine Rewrite-Regeln. `GET session` liefert Einrichtungs-/Registrierungsstatus und ein Session-CSRF-Token; `GET state` liefert den angemeldeten Benutzer (ohne Hash), alle Listen und Wünsche. Unangemeldete erhalten 401, vor Setup nur `installed:false`.
+`api/index.php?action=…`, keine Rewrite-Regeln. `GET session` liefert Einrichtungs-/Registrierungsstatus und ein Session-CSRF-Token; `GET state` liefert den angemeldeten Benutzer (ohne Hash, mit eigenem Boolean `isAdmin`), alle Listen und Wünsche. Unangemeldete erhalten 401, vor Setup nur `installed:false`.
 
 Änderungen ausschließlich `POST`, JSON (`Content-Type: application/json`) oder Formular. CSRF über `X-CSRF-Token` oder Formularfeld `csrf`, Session-Cookie mitsenden. Token nach Login/Logout erneuern (jede Antwort liefert `csrf`). Keine CORS-Freigabe.
 
@@ -51,3 +51,5 @@ Sitzungen und Cookies bleiben 14 Tage seit der letzten Nutzung gültig und werde
 
 
 Seit Schema 4 liefern die öffentlichen Endpunkte unverändert `image:true/false` und gegebenenfalls `imageSourceUrl`. Interne Dateinamen, Prüfsummen und private Ablagepfade werden nicht ausgegeben. Dauerhafte Bilder liegen separat und werden nach derselben Zugriffsprüfung über `media.php` gestreamt; es gibt keine öffentliche Route zu den privaten JSON-/Bilddateien. [Speicherkonzept](STORAGE.md).
+
+Die Statistikseite `index.php?page=admin` erlaubt nur GET/HEAD und prüft `isAdmin === true` serverseitig bei jedem Zugriff. Keine öffentliche Statistik-API und keine Webfunktion zur Vergabe von Admin-Rechten. POST auf diese Seite liefert 405, reguläre angemeldete Konten erhalten 403.

@@ -64,7 +64,7 @@ final class App
         }
         throw new Problem(401, 'Die Sitzung ist abgelaufen. Bitte erneut anmelden.');
     }
-    public static function publicUser(array $u): array { return array_intersect_key($u, array_flip(['id','name','username','googleEmail'])) + ['hasLocalPassword'=>is_string($u['passwordHash']), 'googleLinked'=>$u['googleSub']!==null]; }
+    public static function publicUser(array $u): array { return array_intersect_key($u, array_flip(['id','name','username','googleEmail'])) + ['isAdmin'=>($u['isAdmin'] ?? false)===true,'hasLocalPassword'=>is_string($u['passwordHash']), 'googleLinked'=>$u['googleSub']!==null]; }
     private static function owner(array $s, string $listId, string $userId): array
     {
         $list = self::find($s['lists'], $listId);
@@ -107,6 +107,26 @@ final class App
             return ['installed'=>true,'siteName'=>$s['settings']['siteName'], 'user'=>self::publicUser($u), 'lists'=>$lists, 'wishes'=>$wishes];
         });
     }
+    public function statistics(): array
+    {
+        return $this->store->read(function(&$s) {
+            $user=self::user($s);
+            if (($user['isAdmin'] ?? false)!==true) { throw new Problem(403,'Diese Seite ist nur für Admins zugänglich.'); }
+            $listOwners=array_unique(array_column($s['lists'],'ownerUserId'));
+            $wishLists=array_unique(array_column($s['wishes'],'listId'));
+            return [
+                'Benutzer'=>count($s['users']), 'Listen'=>count($s['lists']), 'Wünsche'=>count($s['wishes']),
+                'Gewünschte Stücke'=>array_sum(array_column($s['wishes'],'quantity')),
+                'Benutzer mit Listen'=>count($listOwners), 'Listen ohne Wünsche'=>count($s['lists'])-count($wishLists),
+                'Listen mit Bild'=>count(array_filter($s['lists'],fn($l)=>$l['image']!==null)),
+                'Wünsche mit Bild'=>count(array_filter($s['wishes'],fn($w)=>$w['image']!==null)),
+                'Wünsche mit Produktlink'=>count(array_filter($s['wishes'],fn($w)=>$w['productUrl']!=='')),
+                'Admins'=>count(array_filter($s['users'],fn($u)=>($u['isAdmin'] ?? false)===true)),
+                'Konten mit Google'=>count(array_filter($s['users'],fn($u)=>$u['googleSub']!==null)),
+                'Konten mit Passwort'=>count(array_filter($s['users'],fn($u)=>is_string($u['passwordHash']))),
+            ];
+        });
+    }
     // Der zufällige Listen-Link erlaubt nur die Ansicht dieser einzelnen Liste.
     public function sharedList(string $id): array
     {
@@ -140,7 +160,7 @@ final class App
                 $registration = $in['registration'] ?? 'open';
                 if (!in_array($registration, ['open','closed'], true)) { throw new Problem(422, 'Ungültiger Registrierungsmodus.'); }
                 $s['settings'] = ['siteName'=>self::text($in, 'siteName', 80, true), 'registration'=>$registration, 'createdAt'=>self::now()];
-                $u = ['id'=>self::id(),'username'=>$username,'name'=>$name,'passwordHash'=>$hash,'sessionVersion'=>1,'createdAt'=>self::now(),'googleSub'=>null,'googleEmail'=>null];
+                $u = ['id'=>self::id(),'username'=>$username,'name'=>$name,'passwordHash'=>$hash,'sessionVersion'=>1,'createdAt'=>self::now(),'googleSub'=>null,'googleEmail'=>null,'isAdmin'=>false];
                 $s['users'][] = $u;
                 return ['login'=>$u, 'message'=>'Willkommen bei MyWish!'];
             }
@@ -162,7 +182,7 @@ final class App
                 if (($this->registrationOverride ?? $s['settings']['registration']) !== 'open') { throw new Problem(403, 'Die Registrierung ist geschlossen.'); }
                 $s['attempts'][]=['ip'=>$ip,'at'=>time(),'kind'=>$action];
                 if ($existing) { return new Problem(409, 'Dieses Benutzerkonto kann nicht registriert werden. Bitte einen anderen Namen verwenden.'); }
-                $u=['id'=>self::id(),'username'=>$username,'name'=>self::text($in,'name',100,true),'passwordHash'=>password_hash(self::password($in), PASSWORD_DEFAULT),'sessionVersion'=>1,'createdAt'=>self::now(),'googleSub'=>null,'googleEmail'=>null];
+                $u=['id'=>self::id(),'username'=>$username,'name'=>self::text($in,'name',100,true),'passwordHash'=>password_hash(self::password($in), PASSWORD_DEFAULT),'sessionVersion'=>1,'createdAt'=>self::now(),'googleSub'=>null,'googleEmail'=>null,'isAdmin'=>false];
                 $s['users'][]=$u;
                 return ['login'=>$u,'message'=>'Dein Konto ist bereit.'];
             }
@@ -275,7 +295,7 @@ final class App
             $username=strtolower($identity['email']);
             if (!preg_match('/^[a-z0-9][a-z0-9._@+\-]{2,119}$/D',$username)) { $username='google-'.substr(hash('sha256',$identity['sub']),0,24); }
             foreach ($s['users'] as $row) { if ($row['username']===$username) { throw new Problem(409,'Es gibt bereits ein Konto mit dieser Kennung. Bitte mit deinem bisherigen Passwort anmelden und Google unter Mein Konto verknüpfen.'); } }
-            $user=['id'=>self::id(),'username'=>$username,'name'=>$identity['name'],'passwordHash'=>null,'sessionVersion'=>1,'createdAt'=>self::now(),'googleSub'=>$identity['sub'],'googleEmail'=>$identity['email']];
+            $user=['id'=>self::id(),'username'=>$username,'name'=>$identity['name'],'passwordHash'=>null,'sessionVersion'=>1,'createdAt'=>self::now(),'googleSub'=>$identity['sub'],'googleEmail'=>$identity['email'],'isAdmin'=>false];
             $s['users'][]=$user; $s['attempts'][]=['ip'=>$ip,'at'=>time(),'kind'=>'register']; return $user;
         });
         self::establishSession($user);

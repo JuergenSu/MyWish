@@ -7,6 +7,8 @@ use MyWish\App;
 use MyWish\Problem;
 
 $page=is_string($_GET['page'] ?? null) ? $_GET['page'] : 'home';
+if ($page==='admin' && !in_array($_SERVER['REQUEST_METHOD'],['GET','HEAD'],true)) { header('Allow: GET, HEAD');http_response_code(405);exit('Diese Statistikseite erlaubt nur Lesezugriffe.'); }
+$statistics=null;
 $error=$_SESSION['authError'] ?? ''; unset($_SESSION['authError']); $form=[]; $preview=null; $state=null; $shared=null; $sharedMediaId=null;
 try { $settings=$app->settings(); } catch (Throwable $ex) { if ($ex instanceof Problem && $ex->reason==='migration_required') { migrationNotice(); } bootFailure($ex instanceof Problem ? $ex->getMessage() : 'Die Daten können nicht gelesen werden.'); }
 if ($_SERVER['REQUEST_METHOD']==='POST') {
@@ -43,7 +45,7 @@ $returnList=returnListId($_GET['returnList'] ?? ($form['returnList'] ?? ''));
 if ($returnList!=='' && in_array($page,['login','register'],true)) { $_SESSION['returnListId']=$returnList; }
 if (!$settings) { $page='setup'; }
 else {
-    try { $state=$app->snapshot(); }
+    try { $state=$page==='admin' ? $store->read(static fn(&$s)=>['user'=>App::publicUser(App::user($s))]) : $app->snapshot(); }
     catch (Problem $ex) { if ($ex->status===401) { if (!in_array($page,['login','register','share'],true)) { $page='login'; } } else { $error=$ex->getMessage(); http_response_code($ex->status); $page='error'; } }
 }
 if ($page==='share' && $settings) {
@@ -57,12 +59,16 @@ if ($page==='share' && $settings) {
 if ($state && in_array($page,['setup','login','register'],true)) { $page='home'; }
 if ($page==='register' && ($settings['registration'] ?? '')!=='open') { $page='login'; $error='Die Registrierung ist geschlossen.'; }
 $user=$state['user'] ?? null;
+if ($page==='admin') {
+    try { $statistics=$app->statistics(); }
+    catch (Throwable $ex) { [$status,$error]=safeError($ex);http_response_code($status);$page='error'; }
+}
 $siteName=$settings['siteName'] ?? 'MyWish';
 $flash=$_SESSION['flash'] ?? ''; unset($_SESSION['flash']);
 ?>
 <!doctype html>
 <html lang="de">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#635bdb"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="<?= e($siteName) ?>"><title><?= e($siteName) ?> · Wünsche verbinden</title><link rel="icon" href="<?= e($base) ?>/assets/favicon.svg" type="image/svg+xml"><link rel="manifest" href="<?= e($base) ?>/manifest.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="<?= e($base) ?>/assets/icons/apple-touch-icon.png"><link rel="stylesheet" href="<?= e($base) ?>/assets/css/app.css?v=google-first-login"><script src="<?= e($base) ?>/assets/js/app.js?v=sharing-uploads" defer></script><script src="<?= e($base) ?>/assets/js/install.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#635bdb"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="<?= e($siteName) ?>"><title><?= e($siteName) ?> · Wünsche verbinden</title><link rel="icon" href="<?= e($base) ?>/assets/favicon.svg" type="image/svg+xml"><link rel="manifest" href="<?= e($base) ?>/manifest.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="<?= e($base) ?>/assets/icons/apple-touch-icon.png"><link rel="stylesheet" href="<?= e($base) ?>/assets/css/app.css?v=admin-statistics"><script src="<?= e($base) ?>/assets/js/app.js?v=sharing-uploads" defer></script><script src="<?= e($base) ?>/assets/js/install.js" defer></script></head>
 <body>
 <a class="skip" href="#main">Zum Inhalt</a>
 <?php if ($settings): ?>
@@ -95,7 +101,7 @@ if (in_array($page,['setup','login','register'],true)):
 <?= field('username','Benutzername oder E-Mail',$form['username'] ?? '','text',true,120,'username') ?>
 <?= field('password','Passwort','','password',true,72,$setup || $register ? 'new-password' : 'current-password') ?>
 <?php if ($setup || $register): ?><p class="field-help"><?= e(App::PASSWORD_HINT) ?></p><?php endif ?>
-<?php if ($setup): ?><label>Registrierung<select name="registration"><option value="open">Offen – neue Nutzer können sich registrieren</option><option value="closed" <?= ($form['registration'] ?? '')==='closed' ? 'selected' : '' ?>>Geschlossen – nur dieses Konto</option></select></label><p class="field-help">Alle angemeldeten Nutzer sehen alle Listen. Es gibt keine privaten Listen und keine Adminrolle. Registrierung später nur durch den Betreiber per Konfigurationsdatei ändern.</p><?php endif ?>
+<?php if ($setup): ?><label>Registrierung<select name="registration"><option value="open">Offen – neue Nutzer können sich registrieren</option><option value="closed" <?= ($form['registration'] ?? '')==='closed' ? 'selected' : '' ?>>Geschlossen – nur dieses Konto</option></select></label><p class="field-help">Alle angemeldeten Nutzer sehen alle Listen. Es gibt keine privaten Listen. Admins können zusätzlich eine Statistik ansehen. Registrierung später nur durch den Betreiber per Konfigurationsdatei ändern.</p><?php endif ?>
 <button class="button primary full" type="submit"><?= $setup ? 'MyWish einrichten' : ($register ? 'Konto erstellen' : 'Anmelden') ?><?= icon('arrow') ?></button></form>
 <?php if (!$setup): ?><p class="auth-switch"><?= $register ? 'Schon dabei?' : 'Noch kein Konto?' ?> <?php if ($register || ($settings['registration'] ?? '')==='open'): ?><a href="<?= e(url('page='.($register ? 'login&method=password' : 'register').($returnList!=='' ? '&returnList='.$returnList : ''))) ?>"><?= $register ? 'Jetzt anmelden' : 'Jetzt registrieren' ?></a><?php else: ?>Registrierung geschlossen.<?php endif ?></p><?php else: ?><p class="field-help">PHP und Storage geprüft · Keine Datenbank erforderlich</p><?php endif ?>
 <?php endif ?></div></section>
@@ -165,14 +171,21 @@ if (in_array($page,['setup','login','register'],true)):
 <?php if (!$reserved): ?><?= emptyState('Noch kein Geschenk ins Auge gefasst?','Entdecke die Listen deiner Lieblingsmenschen und reserviere eine Einheit eines Wunsches.') ?><div class="center"><a class="button primary" href="<?= e(url()) ?>">Wunschlisten entdecken</a></div><?php endif ?>
 <?php elseif ($page==='account' && $state): ?>
 <?= backLink('', 'Alle Wunschlisten') ?><div class="form-heading"><span class="eyebrow">DEIN PLATZ BEI MYWISH</span><h1>Mein Konto</h1><p class="muted"><?= e($user['username']) ?> · Keine E-Mail-Benachrichtigungen, keine Tracker.</p></div>
+<?php if ($user['isAdmin']): ?><div class="narrow"><a class="button secondary" href="<?= e(url('page=admin')) ?>">Admin-Statistik</a></div><?php endif ?>
 <?php if ($google->available() && !$user['hasLocalPassword']): ?><div class="panel edit-panel stack google-account"><h2>Google-Anmeldung bestätigen</h2><p class="muted">Für Änderungen und Kontolöschung bitte dein Google-Konto erneut bestätigen. Die Bestätigung gilt fünf Minuten.</p><?= googleButton('reauthenticate','Mit Google erneut bestätigen') ?></div><?php endif ?>
 <form class="panel edit-panel stack" method="post"><?= csrf() ?><?= hidden('action','account') ?><?= field('name','Anzeigename',$form['name'] ?? $user['name'],'text',true,100) ?><?php if ($user['hasLocalPassword']): ?><?= field('currentPassword','Aktuelles Passwort','','password',true,72,'current-password') ?><?php endif ?><?= field('newPassword',$user['hasLocalPassword'] ? 'Neues Passwort (optional)' : 'Lokales Passwort festlegen (optional)','','password',false,72,'new-password') ?><p class="field-help"><?= e(App::PASSWORD_HINT) ?> Leer lassen, um dein Passwort zu behalten. Nach Änderung werden deine anderen Sitzungen ungültig.</p><button class="button primary">Änderungen speichern</button></form>
 <?php if ($google->available()): ?><section class="panel edit-panel stack google-account"><h2>Google-Konto</h2>
 <?php if ($user['googleLinked']): ?><p>Verknüpft mit <?= e($user['googleEmail']) ?>.</p><?php if ($user['hasLocalPassword']): ?><form method="post" class="stack"><?= csrf() ?><?= hidden('action','unlinkGoogle') ?><?= field('currentPassword','Aktuelles Passwort zum Trennen','','password',true,72,'current-password') ?><button class="button secondary">Google-Verknüpfung trennen</button></form><?php else: ?><p class="muted">Zum Trennen zuerst nach Google-Bestätigung ein lokales Passwort festlegen.</p><?php endif ?>
 <?php else: ?><p class="muted">Verknüpfe dein Google-Konto, um deine bisherigen Listen auch über „Mit Google anmelden“ zu erreichen.</p><form method="post" action="<?= e($base) ?>/auth/google/start.php" class="stack"><?= csrf() ?><?= hidden('purpose','link') ?><?= field('currentPassword','Aktuelles Passwort zum Verknüpfen','','password',true,72,'current-password') ?><button class="button google-button"><img src="<?= e($base) ?>/assets/google-g.svg" alt="" width="20" height="20">Google-Konto verknüpfen</button></form><?php endif ?></section><?php endif ?>
 <div class="narrow account-footer"><form method="post"><?= csrf() ?><?= hidden('action','logout') ?><button class="button secondary">Abmelden</button></form><details class="danger-zone"><summary>Konto löschen</summary><p>Dein Konto, deine Listen und Wünsche sowie deine Reservierungen werden dauerhaft gelöscht. Sicherungen des Betreibers können ältere Daten enthalten.</p><form method="post" class="stack"><?= csrf() ?><?= hidden('action','deleteAccount') ?><?php if ($user['hasLocalPassword']): ?><?= field('currentPassword','Aktuelles Passwort','','password',true,72,'current-password') ?><?php else: ?><p>Vorher oben „Mit Google erneut bestätigen“ verwenden.</p><?php endif ?><label class="check"><input type="checkbox" name="confirm" value="yes" required>Ich bestätige die endgültige Löschung.</label><button class="button danger">Konto endgültig löschen</button></form></details></div>
+<?php elseif ($page==='admin' && $statistics!==null): ?>
+<?= backLink('page=account','Mein Konto') ?>
+<div class="form-heading"><span class="eyebrow">ADMIN-BEREICH</span><h1>Statistik</h1><p class="muted">Zusammengefasste Zahlen zum aktuellen Datenbestand. Diese Seite dient nur zur Ansicht.</p></div>
+<dl class="card-grid admin-statistics">
+<?php foreach ($statistics as $label=>$value): ?><div class="panel"><dt><?= e($label) ?></dt><dd><?= e(number_format($value,0,',','.')) ?></dd></div><?php endforeach ?>
+</dl><p class="field-help">Konten mit Google und Passwort können in beiden Gruppen gezählt sein. Reservierungen und Angaben zu einzelnen Personen, Listen oder Wünschen werden hier nicht angezeigt.</p>
 <?php elseif ($page==='error'): ?><?= emptyState('MyWish ist gerade nicht verfügbar','Bitte die angezeigte Meldung prüfen und später erneut versuchen.') ?>
 <?php else: throw new Problem(404,'Diese Seite wurde nicht gefunden.'); endif;
 } catch (Throwable $ex) { [$status,$message]=safeError($ex); http_response_code($status); ?><div class="notice error" role="alert"><?= e($message) ?></div><a class="button secondary" href="<?= e(url()) ?>">Zur Übersicht</a><?php } ?>
-</main><footer class="footer shell"><a class="brand small" href="<?= e(url()) ?>"><?= icon('gift') ?><?= e($siteName) ?></a><span>Mit Wünschen fängt Freude an.</span><span><a href="<?= e($base) ?>/anleitung.php">Anleitung</a> · Listen sind auch über ihren Teilen-Link sichtbar. <a href="<?= e(url('page=account')) ?>">Mein Konto</a></span></footer>
+</main><footer class="footer shell"><a class="brand small" href="<?= e(url()) ?>"><?= icon('gift') ?><?= e($siteName) ?></a><span>Mit Wünschen fängt Freude an.</span><span><?php if ($user['isAdmin'] ?? false): ?><a href="<?= e(url('page=admin')) ?>">Admin-Statistik</a> · <?php endif ?><a href="<?= e($base) ?>/anleitung.php">Anleitung</a> · Listen sind auch über ihren Teilen-Link sichtbar. <a href="<?= e(url('page=account')) ?>">Mein Konto</a></span></footer>
 </body></html>
