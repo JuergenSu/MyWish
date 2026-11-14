@@ -18,7 +18,7 @@ header("Content-Security-Policy: default-src 'none'; style-src 'self'; img-src '
   <link rel="icon" href="assets/icons/icon-192.png">
 </head>
 <body>
-<a class="skip-link" href="#inhalt">Zum Inhalt</a>
+<a class="skip" href="#inhalt">Zum Inhalt</a>
 <header class="header"><div class="shell header-inner"><a class="brand" href="index.php">MyWish.</a><a class="button secondary" href="index.php">Zu MyWish</a></div></header>
 <main id="inhalt" class="shell main guide">
   <div class="form-heading">
