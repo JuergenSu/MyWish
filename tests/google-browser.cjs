@@ -36,7 +36,7 @@ const php = process.env.PHP_BIN || "php";
   const base = `http://127.0.0.1:${port}/mywish/`;
   fs.writeFileSync(
     path.join(doc, "mywish/config.php"),
-    `<?php return ['google'=>['client_id'=>'fixture.apps.googleusercontent.com','client_secret'=>'test-secret-only','redirect_uri'=>'${base}auth/google/callback.php']];`,
+    `<?php return ['data'=>${JSON.stringify(path.join(temp, "data"))},'google'=>['client_id'=>'fixture.apps.googleusercontent.com','client_secret'=>'test-secret-only','redirect_uri'=>'${base}auth/google/callback.php']];`,
   );
   fs.mkdirSync(artifacts, { recursive: true });
   const log = fs.openSync(path.join(artifacts, "google-server.log"), "w");

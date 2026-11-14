@@ -2,7 +2,8 @@
 import json,pathlib
 
 def data_directory(storage):
- return pathlib.Path(json.loads((pathlib.Path(storage)/'layout.php').read_text().split('\n',1)[1])['directory'])
+ storage=pathlib.Path(storage);directory=pathlib.Path(json.loads((storage/'layout.php').read_text().split('\n',1)[1])['directory'])
+ return directory if directory.is_absolute() else storage/directory
 
 def disk_state(storage):
  root=data_directory(storage);manifest=json.loads((root/'manifest.json').read_text())

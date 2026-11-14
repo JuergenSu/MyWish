@@ -2,7 +2,7 @@
 declare(strict_types=1);
 namespace MyWish;
 
-/** Plain JSON and binary images, exclusively outside the public document root. */
+/** Plain JSON and binary images, protected by filesystem location or verified .htaccess. */
 final class DiskStorage
 {
     public const TABLES=['settings','users','lists','wishes','reservations','attempts'];
@@ -10,7 +10,7 @@ final class DiskStorage
     private ?array $manifest=null;
     private ?string $expectedId=null;
 
-    public function __construct(private string $legacy,private ?string $requested=null,private ?string $webRoot=null) {}
+    public function __construct(private string $legacy,private ?string $requested=null,private ?string $webRoot=null,private bool $offline=false) {}
     public function hasLayout(): bool
     {
         if (!is_file($this->legacy.'/layout.php')) { return false; }
@@ -18,7 +18,7 @@ final class DiskStorage
             $raw=self::bytes($this->legacy.'/layout.php');
             if (!str_starts_with($raw,Store::GUARD)) { throw new Problem(503,'Ungültiger Datenverweis.'); }
             $locator=self::locator(self::json(substr($raw,strlen(Store::GUARD))));
-            if ($this->privatePath($this->requested)!==$this->privatePath($locator['directory'])) { return false; }
+            if ($this->privatePath($this->requested)!==$this->privatePath($this->locatorPath($locator['directory']))) { return false; }
         }
         return true;
     }
@@ -38,7 +38,7 @@ final class DiskStorage
     private static function within(string $path,string $parent): bool { return $path===$parent || str_starts_with($path,rtrim($parent,'/').'/'); }
     private static function canonical(string $path): string
     {
-        if (!str_starts_with($path,'/') || str_contains($path,"\0")) { throw new Problem(503,'Der JSON-Datenordner muss ein absoluter Pfad außerhalb des Webroots sein.'); }
+        if (!str_starts_with($path,'/') || str_contains($path,"\0")) { throw new Problem(503,'Der konfigurierte JSON-Datenordner muss ein absoluter Pfad sein.'); }
         $parts=[];
         foreach (explode('/',$path) as $part) { if ($part==='' || $part==='.') { continue; } if ($part==='..') { array_pop($parts); } else { $parts[]=$part; } }
         $path='/'.implode('/',$parts); $tail=[];
@@ -50,17 +50,22 @@ final class DiskStorage
     private function privatePath(string $path): string
     {
         $path=self::canonical($path);
+        if ($this->offline) { return $path; }
         foreach (array_filter([realpath(dirname(__DIR__)),$this->webRoot!==null ? realpath($this->webRoot) : false]) as $public) {
-            if (self::within($path,$public)) { throw new Problem(503,'JSON und Bilddateien müssen außerhalb des öffentlich erreichbaren Webroots liegen. Bitte data in config.php auf einen privaten Ordner setzen.'); }
+            if (self::within($path,$public)) { StorageProtection::requireProtected($this->legacy,$path,$this->webRoot); }
         }
         return $path;
     }
     private function target(): string
     {
         if ($this->requested!==null) { return $this->privatePath($this->requested); }
-        $web=$this->webRoot!==null ? realpath($this->webRoot) : false;
-        if ($web && self::within($this->legacy,$web)) { return $this->privatePath(dirname($web).'/.mywish-data-'.substr(hash('sha256',$this->legacy),0,16)); }
         return $this->privatePath($this->legacy.'/data-v4');
+    }
+    private function locatorPath(string $path): string
+    {
+        if (str_starts_with($path,'/')) { return $path; }
+        if ($path==='' || in_array('..',explode('/',$path),true) || !preg_match('/^[a-z0-9_.-]+(?:\/[a-z0-9_.-]+)*$/iD',$path)) { throw new Problem(503,'Ungültiger relativer Datenverweis.'); }
+        return $this->legacy.'/'.$path;
     }
     private static function locator(mixed $value): array
     {
@@ -75,7 +80,7 @@ final class DiskStorage
         $raw=self::bytes($this->legacy.'/layout.php');
         if (!str_starts_with($raw,Store::GUARD)) { throw new Problem(503,'Ungültiger Schutz des Datenverweises.'); }
         $locator=self::locator(self::json(substr($raw,strlen(Store::GUARD))));
-        $this->root=$this->privatePath($this->requested ?? $locator['directory']);$this->expectedId=$locator['datasetId'];
+        $this->root=$this->privatePath($this->requested ?? $this->locatorPath($locator['directory']));$this->expectedId=$locator['datasetId'];
         $manifest=$this->readManifest();
         if ($manifest['datasetId']!==$locator['datasetId']) { throw new Problem(503,'Der konfigurierte Datenordner gehört zu einem anderen Datenbestand. Bitte den Datenpfad prüfen.'); }
     }
@@ -180,21 +185,23 @@ final class DiskStorage
     }
     private function publishLocator(): void
     {
-        $locator=['format'=>4,'directory'=>$this->root,'datasetId'=>$this->manifest['datasetId']];
+        $directory=str_starts_with($this->root,$this->legacy.'/') ? substr($this->root,strlen($this->legacy)+1) : $this->root;
+        $locator=['format'=>4,'directory'=>$directory,'datasetId'=>$this->manifest['datasetId']];
         // Old app versions must refuse the retired monolith instead of diverging.
         Store::writeFile($this->legacy.'/state.php',Store::GUARD.self::encode(['schemaVersion'=>4,'migration'=>$locator]));
         Store::writeFile($this->legacy.'/layout.php',Store::GUARD.self::encode($locator));
     }
-    public function initialize(): void
+    public function initialize(bool $allowLegacy=true): void
     {
         if ($this->hasLayout()) { $this->locate();return; }
         $file=$this->legacy.'/state.php';
+        if (!$allowLegacy && is_file($file)) { throw new Problem(503,'Bitte den einmaligen Browser-Migrationslauf über migrate-storage.php starten.','migration_required'); }
         if (is_file($file)) { Store::checkMigrationMemory(filesize($file)); }
         $source=is_file($file) ? self::bytes($file) : null;
         if ($source!==null && !str_starts_with($source,Store::GUARD)) { throw new Problem(503,'Die bisherige Datendatei ist beschädigt. Bitte eine geprüfte Sicherung verwenden.'); }
         $header=$source!==null && str_starts_with($source,Store::GUARD) ? self::json(substr($source,strlen(Store::GUARD))) : null;
         if (is_array($header) && ($header['schemaVersion'] ?? null)===4 && isset($header['migration'])) {
-            $locator=self::locator($header['migration']);$this->root=$this->privatePath($this->requested ?? $locator['directory']);$this->verify();
+            $locator=self::locator($header['migration']);$this->root=$this->privatePath($this->requested ?? $this->locatorPath($locator['directory']));$this->verify();
             if ($this->manifest['datasetId']!==$locator['datasetId']) { throw new Problem(503,'Der Migrationsverweis passt nicht zum Datenbestand.'); }
             $this->publishLocator();return;
         }
@@ -203,7 +210,7 @@ final class DiskStorage
         $this->root=$this->target();
         if (is_file($this->root.'/manifest.json')) {
             $this->verify();$origin=$this->manifest['origin'] ?? null;
-            if ($source!==null && (!is_array($origin) || ($origin['sourceHash'] ?? null)!==hash('sha256',$source) || ($origin['storageHash'] ?? null)!==hash('sha256',$this->legacy))) { throw new Problem(503,'Der Zielordner enthält einen anderen Datenbestand. Bitte einen leeren privaten Datenordner verwenden.'); }
+            if ($source!==null && (!is_array($origin) || ($origin['sourceHash'] ?? null)!==hash('sha256',$source) || ($origin['storageHash'] ?? null)!==hash('sha256',$this->legacy))) { throw new Problem(503,'Der Zielordner enthält einen anderen Datenbestand. Bitte einen leeren Datenordner verwenden.'); }
             if ($source!==null) {
                 $backup=$origin['backup'] ?? '';
                 if (!is_string($backup) || !preg_match('/^backup-schema-[123]-[a-f0-9]{64}\\.php$/D',$backup)) { throw new Problem(503,'Der Migrationsbackup-Verweis ist beschädigt.'); }
@@ -213,7 +220,7 @@ final class DiskStorage
             $this->publishLocator();return;
         }
         $target=$this->root;$staging=$target.'.migrate-'.bin2hex(random_bytes(8));
-        if ((is_dir($target) && count(scandir($target))>2) || !is_dir(dirname($target)) || !is_writable(dirname($target))) { throw new Problem(503,'Der private JSON-Datenordner kann nicht angelegt werden oder ist nicht leer. Bitte data in config.php auf einen leeren beschreibbaren Ordner außerhalb des Webroots setzen.'); }
+        if ((is_dir($target) && count(scandir($target))>2) || !is_dir(dirname($target)) || !is_writable(dirname($target))) { throw new Problem(503,'Der JSON-Datenordner kann nicht angelegt werden oder ist nicht leer. Bitte Speicherplatz und Dateirechte im storage-Ordner prüfen.'); }
         $backup=null;
         if ($source!==null) {
             $backup='backup-schema-'.$state['schemaVersion'].'-'.hash('sha256',$source).'.php';
@@ -223,6 +230,7 @@ final class DiskStorage
         if (!@mkdir($staging,0700)) { throw new Problem(503,'Der private Migrationsordner kann nicht angelegt werden. Bitte Speicherplatz und Dateirechte prüfen.'); }
         $this->root=$staging;$this->manifest=null;$this->expectedId=null;
         try {
+            Store::writeFile($staging.'/.htaccess',StorageProtection::RULE);
             foreach (['records','images'] as $folder) { if (!@mkdir($staging.'/'.$folder,0700)) { throw new Problem(503,'Der private Datenordner ist nicht beschreibbar.'); } }
             $origin=['sourceHash'=>$source!==null ? hash('sha256',$source) : null,'storageHash'=>hash('sha256',$this->legacy),'backup'=>$backup];
             $this->commit($state,null,$origin);$this->verify();
@@ -230,7 +238,7 @@ final class DiskStorage
             $this->root=$target;$this->publishLocator();
         } finally {
             // Staging is never a live dataset. A failed migration is retryable.
-            if (is_dir($staging)) { foreach (['records','images'] as $folder) { foreach (glob($staging.'/'.$folder.'/*') ?: [] as $file) { @unlink($file); }@rmdir($staging.'/'.$folder); }foreach (glob($staging.'/*') ?: [] as $file) { @unlink($file); }@rmdir($staging); }
+            if (is_dir($staging)) { foreach (['records','images'] as $folder) { foreach (glob($staging.'/'.$folder.'/*') ?: [] as $file) { @unlink($file); }@rmdir($staging.'/'.$folder); }foreach (glob($staging.'/*') ?: [] as $file) { @unlink($file); }@unlink($staging.'/.htaccess');@rmdir($staging); }
             $this->root=$target;
         }
     }
@@ -239,10 +247,38 @@ final class DiskStorage
         $target=$this->privatePath($target);$this->verify();
         if (file_exists($target)) { throw new Problem(503,'Der Sicherungsordner darf noch nicht existieren.'); }
         if (!@mkdir($target,0700) || !@mkdir($target.'/records',0700) || !@mkdir($target.'/images',0700)) { throw new Problem(503,'Der Sicherungsordner kann nicht angelegt werden.'); }
+        Store::writeFile($target.'/.htaccess',StorageProtection::RULE);
         $state=$this->load();
         foreach ($this->manifest['collections'] as $file) { Store::writeFile($target.'/records/'.$file,self::bytes($this->root.'/records/'.$file)); }
         foreach (self::imageFiles($state) as $file=>$_) { Store::writeFile($target.'/images/'.$file,self::bytes($this->root.'/images/'.$file)); }
         Store::writeFile($target.'/manifest.json',self::encode($this->manifest));
+    }
+    /** Called with the legacy and current dataset locks held exclusively. */
+    public function relocateDefault(): void
+    {
+        // An explicitly configured private location remains an operator choice.
+        if ($this->requested!==null) { return; }
+        $target=$this->target();if ($this->root===$target) { return; }
+        $this->verify();$original=self::bytes($this->root.'/manifest.json');
+        $staging=$target.'.migrate-'.bin2hex(random_bytes(8));
+        try {
+            if (is_file($target.'/manifest.json')) {
+                // Resume a rename-before-locator crash only if the old store has not changed.
+                self::checkDirectory($target);
+                if (!hash_equals(hash('sha256',$original),hash_file('sha256',$target.'/manifest.json'))) { throw new Problem(503,'Der Zielordner enthält einen abweichenden Datenstand. Beide Bestände bleiben erhalten. Bitte den unvollständigen Umzug vor einem erneuten Versuch prüfen.'); }
+            } else {
+                if (is_dir($target) && count(scandir($target))>2) { throw new Problem(503,'Der neue Datenordner ist nicht leer. Der bisherige Bestand bleibt erhalten.'); }
+                $this->backup($staging);
+                if (!@rename($staging,$target)) { throw new Problem(503,'Der kopierte Datenbestand kann nicht aktiviert werden. Bitte Dateirechte und Speicherplatz prüfen.'); }
+            }
+            $this->root=$target;$this->manifest=null;$this->verify();$this->publishLocator();
+            // Keep the original directory untouched as a relocation backup.
+        } finally {
+            if (is_dir($staging)) {
+                foreach (['records','images'] as $folder) { foreach (glob($staging.'/'.$folder.'/*') ?: [] as $file) { @unlink($file); }@rmdir($staging.'/'.$folder); }
+                foreach (glob($staging.'/*') ?: [] as $file) { @unlink($file); }@unlink($staging.'/.htaccess');@rmdir($staging);
+            }
+        }
     }
     public function cleanup(): array
     {
@@ -268,6 +304,6 @@ final class DiskStorage
     }
     public static function checkDirectory(string $directory): array
     {
-        $disk=new self(dirname($directory));$disk->root=$disk->privatePath($directory);return $disk->verify();
+        $disk=new self(dirname($directory),null,null,true);$disk->root=$disk->privatePath($directory);return $disk->verify();
     }
 }

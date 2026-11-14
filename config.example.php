@@ -1,13 +1,13 @@
 <?php
 // Als config.php kopieren. Bestehende config.php bei Updates erhalten.
-// Empfohlen: beschreibbarer Ordner außerhalb des öffentlich erreichbaren Webroots.
+// Copy-Deployment: storage/ liegt neben index.php und wird durch .htaccess gesperrt.
 return [
     'storage' => __DIR__.'/storage',
-    // Schema 4: echte JSON-/Bilddateien müssen außerhalb des Webroots liegen.
-    // null: automatisch privater Ordner neben dem Webroot (oder unter storage,
-    // wenn storage bereits privat liegt). Alternativ absoluten privaten Pfad setzen.
-    // Der übergeordnete Ordner muss existieren und für PHP beschreibbar sein.
-    'data' => null, // z.B. '/home/dein-konto/private/mywish-data'
+    // null: storage/data-v4 mit JSON-Dateien und separaten Bildern.
+    // storage/.htaccess mitkopieren; Apache 2.4 muss Require all denied beachten.
+    // Vor der ersten Nutzung prüft MyWish den Schutz per lokaler HTTP-Anfrage.
+    // Optional: absoluter privater Datenpfad außerhalb des Webroots (z.B. für Nginx).
+    'data' => null,
 
     // null: Setup-Einstellung. Betreiber kann hier auf open oder closed umschalten.
     'registration' => null,

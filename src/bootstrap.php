@@ -38,6 +38,7 @@ try {
 $config = is_file(dirname(__DIR__).'/config.php') ? require dirname(__DIR__).'/config.php' : [];
 if (!is_array($config)) { throw new Problem(503,'config.php muss ein Konfigurationsarray zurückgeben.'); }
 $storageDirectory=$config['storage'] ?? dirname(__DIR__).'/storage';
+MyWish\StorageProtection::configure($storageDirectory,$base,$_SERVER);
 $store=new Store($storageDirectory,$config['data'] ?? null);
 $sessions=new MyWish\SessionStore($storageDirectory.'/sessions');
 ini_set('session.use_strict_mode', '1');
@@ -61,5 +62,12 @@ $google = new MyWish\GoogleOidc(is_array($config['google'] ?? null) ? $config['g
 $imageSearch = new MyWish\OpenAiImages(is_array($config['openai'] ?? null) ? $config['openai'] : [], $storageDirectory);
 if ($google->available()) { header('Content-Security-Policy: '.$csp.' https://accounts.google.com;'); } }
 catch (Throwable $e) { bootFailure($e instanceof Problem ? $e->getMessage() : 'MyWish kann die Daten nicht öffnen. Bitte Konfiguration prüfen.'); }
+function migrationNotice(): never
+{
+    global $base;
+    http_response_code(503);header('Content-Type: text/html; charset=utf-8');
+    echo '<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>MyWish aktualisieren</title><h1>Datenspeicher aktualisieren</h1><p>Bitte den einmaligen Browser-Migrationslauf starten. Die bisherigen Daten bleiben bis dahin erhalten.</p><p><a href="'.htmlspecialchars($base.'/migrate-storage.php',ENT_QUOTES,'UTF-8').'">Migration öffnen</a></p></html>';
+    exit;
+}
 function url(string $query = ''): string { global $base; return $base.'/index.php'.($query !== '' ? '?'.$query : ''); }
 function e(mixed $value): string { return htmlspecialchars((string)$value, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }

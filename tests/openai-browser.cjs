@@ -33,7 +33,7 @@ const axe = fs.readFileSync(
     });
     fs.writeFileSync(
       path.join(dir, "config.php"),
-      "<?php return ['openai'=>['api_key'=>'sk-test-server-key','model'=>'test-model']];",
+      `<?php return ['data'=>${JSON.stringify(path.join(temp, "data-" + path.basename(dir)))},'openai'=>['api_key'=>'sk-test-server-key','model'=>'test-model']];`,
     );
   }
   const server = spawn(

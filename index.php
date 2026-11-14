@@ -8,7 +8,7 @@ use MyWish\Problem;
 
 $page=is_string($_GET['page'] ?? null) ? $_GET['page'] : 'home';
 $error=$_SESSION['authError'] ?? ''; unset($_SESSION['authError']); $form=[]; $preview=null; $state=null; $shared=null; $sharedMediaId=null;
-try { $settings=$app->settings(); } catch (Throwable $ex) { bootFailure($ex instanceof Problem ? $ex->getMessage() : 'Die Daten können nicht gelesen werden.'); }
+try { $settings=$app->settings(); } catch (Throwable $ex) { if ($ex instanceof Problem && $ex->reason==='migration_required') { migrationNotice(); } bootFailure($ex instanceof Problem ? $ex->getMessage() : 'Die Daten können nicht gelesen werden.'); }
 if ($_SERVER['REQUEST_METHOD']==='POST') {
     try {
         $form=input(); $action=App::text($form,'action',30,true);

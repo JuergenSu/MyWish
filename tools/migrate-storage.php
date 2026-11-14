@@ -26,7 +26,8 @@ try {
         }
         if ($locator!==null) {
             if (!is_array($locator) || !is_string($locator['directory'] ?? null) || !is_string($locator['datasetId'] ?? null)) { throw new RuntimeException('Der Datenverweis ist beschädigt.'); }
-            $target=DiskStorage::plannedDirectory($directory,$options['data'] ?? $locator['directory'],$_SERVER['DOCUMENT_ROOT']);
+            $located=$locator['directory'];if (!str_starts_with($located,'/')) { $located=$directory.'/'.$located; }
+            $target=DiskStorage::plannedDirectory($directory,$options['data'] ?? $located,$_SERVER['DOCUMENT_ROOT']);
             $state=DiskStorage::checkDirectory($target);$manifest=json_decode(file_get_contents($target.'/manifest.json'),true,64,JSON_THROW_ON_ERROR);
             if ($manifest['datasetId']!==$locator['datasetId']) { throw new RuntimeException('Das Ziel gehört zu einem anderen Datenbestand.'); }
         } else { $target=DiskStorage::plannedDirectory($directory,$options['data'] ?? null,$_SERVER['DOCUMENT_ROOT']); }
