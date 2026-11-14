@@ -8,11 +8,26 @@ Eine kleine, selbst gehostete Wunschwelt für Freunde und Familie. PHP 8.2+, HTM
 - Neue Passwörter: mindestens 8 Zeichen, maximal 72 UTF-8-Bytes. Sonderzeichen sind optional. Bestehende Passwörter bleiben gültig.
 - Jede Liste hat einen **Teilen**-Knopf mit öffentlichem Link auf Basis ihrer zufälligen ID. Empfänger sehen nur diese Liste ohne Anmeldung; zum Reservieren führt der Link zur Anmeldung und danach zurück. Auf Handys wird die native Teilen-Funktion genutzt, sonst der Link kopiert.
 - Alle angemeldeten Nutzer sehen alle Listen. Genau ein Eigentümer bearbeitet eine Liste und ihre Wünsche. Andere Nutzer können eine Einheit pro Wunsch reservieren und ihre Reservierung wieder freigeben.
-- Der Eigentümer erhält **keine Reservierungsinformationen**, weder in HTML noch in JSON. Es gibt keine Adminrolle, privaten Listen oder Kinderprofile. Das V1-Grundmodell aus [Epic #3](https://github.com/JuergenSu/MyWish/issues/3) wird um öffentliche Teilen-Links ergänzt.
+- Der Eigentümer erhält **keine Reservierungsinformationen**, weder in HTML noch in JSON. Es gibt keine privaten Listen oder Kinderprofile. Konten mit `isAdmin: true` können zusätzlich eine reine Statistikseite ansehen. Das V1-Grundmodell aus [Epic #3](https://github.com/JuergenSu/MyWish/issues/3) wird um öffentliche Teilen-Links ergänzt.
 - Listen mit Anlass, Datum, Beschreibung und Cover; Wünsche mit optionalem Shoplink, Bild, EUR-Preis und Menge (1–99).
 - Optionaler Produktimport mit Vorschau (OpenGraph, Twitter Cards, JSON-LD, Produktgalerien und Amazon.de-Produktfelder). Eingaben prüfen und explizit speichern; ein manueller Wunsch funktioniert immer.
 - Meine Reservierungen, Suche über Listen/Anzeigenamen, mobile Oberfläche und Formulare ohne JavaScript.
 - Installationsbanner auf dem Handy: Android-Installationsdialog oder iPhone-Anleitung für den Home-Bildschirm; App-Manifest und lokale Icons, auch im Unterordner.
+
+## Admin-Statistik
+
+Unter `index.php?page=admin` sehen ausschließlich angemeldete Konten mit **`isAdmin: true`** zusammengefasste Zahlen: Benutzer, Listen, Wünsche, gewünschte Stücke, Bilder, Produktlinks und Anmeldemöglichkeiten. Der Link **Admin-Statistik** erscheint für diese Konten unter „Mein Konto“ und am Seitenende. Die Seite enthält keine Änderungsfunktionen. Reservierungen und einzelne Konten oder Listen werden nicht angezeigt; Admins erhalten keine zusätzlichen Bearbeitungsrechte an fremden Listen.
+
+Alle neuen und bestehenden Konten starten ohne Admin-Rechte. Ein fehlendes Flag in vorhandenen Schema-4-Daten gilt als `false` und wird beim nächsten Schreiben ergänzt. Es ist keine erneute Browser-Migration nötig. Das Flag ist ausschließlich ein JSON-Boolean (`true` oder `false`), kein Text. Versionierte JSON-Dateien wegen ihrer Prüfsummen nicht direkt bearbeiten.
+
+Der Betreiber kann ein vorhandenes Konto über die Kommandozeile freischalten. Das Werkzeug verwendet die bestehende `config.php` und schreibt unter der normalen Datensperre:
+
+```sh
+php tools/set-admin.php --web-root=/home/konto/public_html --username=kennung --enable
+php tools/set-admin.php --web-root=/home/konto/public_html --username=kennung --disable
+```
+
+Den tatsächlichen DocumentRoot und die Benutzerkennung einsetzen. Der Datenbestand muss bereits eingerichtet oder migriert sein. Änderungen gelten sofort, auch für bestehende Sitzungen. Registrierung, Google-Anmeldung und Kontoformulare können das Flag nicht vergeben oder ändern. Das Werkzeug ist über HTTP nicht aufrufbar.
 
 ## Anleitung für Nutzer
 
@@ -107,7 +122,7 @@ Ohne CLI während der vollständigen Verzeichniskopie Schreibzugriffe stoppen. `
 
 Bei Updates `storage/`, `config.php` und den privaten Datenordner erhalten. Die Migration bewahrt IDs, Konten, Google-Verknüpfungen und bestehende Sitzungsversionen. Die einmalige Neuanmeldung beim früheren Wechsel auf 14-Tage-Sitzungen gilt nicht erneut für diese Speichermigration.
 
-Registrierungsmodus ändern: In `config.php` `'registration' => 'open'` oder `'closed'` setzen; `null` verwendet die ursprüngliche Setup-Einstellung. Die Änderung greift serverseitig sofort und benötigt keine Änderung der JSON-Daten. Kein Einladungsmodus in V1. Es gibt keinen E-Mail-Passwortreset; bei Passwortverlust zunächst eine noch aktive Sitzung verwenden oder der Betreiber ersetzt offline über eine `Store::transaction` den Hash durch einen lokal mit `password_hash` erzeugten Hash und erhöht `sessionVersion` (niemals Klartext speichern; versionierte JSON-Dateien nicht direkt bearbeiten). Niemand erhält dadurch eine Adminrolle.
+Registrierungsmodus ändern: In `config.php` `'registration' => 'open'` oder `'closed'` setzen; `null` verwendet die ursprüngliche Setup-Einstellung. Die Änderung greift serverseitig sofort und benötigt keine Änderung der JSON-Daten. Kein Einladungsmodus in V1. Es gibt keinen E-Mail-Passwortreset; bei Passwortverlust zunächst eine noch aktive Sitzung verwenden oder der Betreiber ersetzt offline über eine `Store::transaction` den Hash durch einen lokal mit `password_hash` erzeugten Hash und erhöht `sessionVersion` (niemals Klartext speichern; versionierte JSON-Dateien nicht direkt bearbeiten). Dadurch werden keine Admin-Rechte vergeben.
 
 ## Verhaltensregeln und Grenzen
 

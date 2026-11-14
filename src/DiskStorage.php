@@ -135,6 +135,7 @@ final class DiskStorage
     }
     public function commit(array &$state,?array $before=null,?array $origin=null): void
     {
+        foreach ($state['users'] as &$user) { if (!array_key_exists('isAdmin',$user)) { $user['isAdmin']=false; } }unset($user);
         $this->images($state);$state['schemaVersion']=4;Store::validate($state);
         if ($before!==null && $state===$before) { return; }
         $old=$this->manifest;$collections=[];

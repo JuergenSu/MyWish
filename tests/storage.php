@@ -19,6 +19,7 @@ try {
         $backups=glob($directory.'/backup-schema-'.$version.'-*.php');check(count($backups)===1 && file_get_contents($backups[0])===$raw,'Byte-identical pre-migration backup: '.$version);
         check($state['schemaVersion']===4 && $state['reservations']===$legacy['reservations'] && $state['attempts']===$legacy['attempts'],'Reservations and rate counters survive migration');
         $expected=$legacy['users'];if ($version===1) { foreach ($expected as &$user) { $user['googleSub']=null;$user['googleEmail']=null; }unset($user); }
+        foreach ($expected as &$user) { $user['isAdmin']=false; }unset($user);
         check($state['users']===$expected,'IDs, hashes, Google-only accounts and session versions are preserved');
         foreach (['lists','wishes'] as $table) { foreach ($state[$table] as $i=>$row) {
             $before=$legacy[$table][$i];$image=$row['image'];unset($row['image'],$before['image']);check($row===$before,'Record metadata is preserved');
