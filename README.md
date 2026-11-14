@@ -18,7 +18,7 @@ Eine kleine, selbst gehostete Wunschwelt für Freunde und Familie. PHP 8.2+, HTM
 
 Unter `index.php?page=admin` sehen ausschließlich angemeldete Konten mit **`isAdmin: true`** zusammengefasste Zahlen: Benutzer, Listen, Wünsche, gewünschte Stücke, Bilder, Produktlinks und Anmeldemöglichkeiten. Der Link **Admin-Statistik** erscheint für diese Konten unter „Mein Konto“ und am Seitenende. Die Seite enthält keine Änderungsfunktionen. Reservierungen und einzelne Konten oder Listen werden nicht angezeigt; Admins erhalten keine zusätzlichen Bearbeitungsrechte an fremden Listen.
 
-Alle neuen und bestehenden Konten starten ohne Admin-Rechte. Ein fehlendes Flag in vorhandenen Schema-4-Daten gilt als `false` und wird beim nächsten Schreiben ergänzt. Es ist keine erneute Browser-Migration nötig. Das Flag ist ausschließlich ein JSON-Boolean (`true` oder `false`), kein Text. Versionierte JSON-Dateien wegen ihrer Prüfsummen nicht direkt bearbeiten.
+Standardmäßig starten neue und bestehende Konten ohne Admin-Rechte. **Ausnahme:** Das Google-Konto mit der bestätigten Adresse `juergen.sussner@gmail.com` erhält bei Google-Anmeldung, Verknüpfung oder erneuter Google-Bestätigung automatisch `isAdmin: true`. Bei einem bestehenden Passwort-Konto zuerst anmelden und Google unter „Mein Konto“ verknüpfen. Ein frei eingegebener Benutzername oder eine normale Registrierung mit dieser Adresse reichen nicht aus. Die Rolle wird dauerhaft im Benutzer-Datensatz gespeichert. Eine manuelle Rückstufung wird bei der nächsten bestätigten Google-Anmeldung durch diese Regel wieder aufgehoben. Ein fehlendes Flag in vorhandenen Schema-4-Daten gilt als `false` und wird beim nächsten Schreiben ergänzt. Es ist keine erneute Browser-Migration nötig. Das Flag ist ausschließlich ein JSON-Boolean (`true` oder `false`), kein Text. Versionierte JSON-Dateien wegen ihrer Prüfsummen nicht direkt bearbeiten.
 
 Der Betreiber kann ein vorhandenes Konto über die Kommandozeile freischalten. Das Werkzeug verwendet die bestehende `config.php` und schreibt unter der normalen Datensperre:
 
@@ -27,7 +27,7 @@ php tools/set-admin.php --web-root=/home/konto/public_html --username=kennung --
 php tools/set-admin.php --web-root=/home/konto/public_html --username=kennung --disable
 ```
 
-Den tatsächlichen DocumentRoot und die Benutzerkennung einsetzen. Der Datenbestand muss bereits eingerichtet oder migriert sein. Änderungen gelten sofort, auch für bestehende Sitzungen. Registrierung, Google-Anmeldung und Kontoformulare können das Flag nicht vergeben oder ändern. Das Werkzeug ist über HTTP nicht aufrufbar.
+Den tatsächlichen DocumentRoot und die Benutzerkennung einsetzen. Der Datenbestand muss bereits eingerichtet oder migriert sein. Änderungen gelten sofort, auch für bestehende Sitzungen. Normale Registrierung und Kontoformulare können das Flag nicht vergeben oder ändern. Die Google-Anmeldung vergibt es ausschließlich für die oben genannte bestätigte Adresse. Das Werkzeug ist über HTTP nicht aufrufbar.
 
 ## Anleitung für Nutzer
 

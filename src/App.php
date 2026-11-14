@@ -4,6 +4,7 @@ namespace MyWish;
 
 final class App
 {
+    private const AUTOMATIC_ADMIN_EMAIL = 'juergen.sussner@gmail.com';
     public const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
     public const PREVIEW_EDGE = 1200;
     public const PASSWORD_HINT = 'Mindestens 8 Zeichen.';
@@ -268,6 +269,14 @@ final class App
     public function googleIdentity(array $identity,string $purpose,array $pending): array
     {
         $user=$this->store->transaction(function(&$s) use ($identity,$purpose,$pending) {
+            // Identity comes only from the validated Google OIDC callback, never a form.
+            $finish=static function(array $user) use (&$s,$identity): array {
+                if (strtolower($identity['email'])===self::AUTOMATIC_ADMIN_EMAIL) {
+                    foreach ($s['users'] as &$row) { if ($row['id']===$user['id']) { $row['isAdmin']=true; } }unset($row);
+                    $user['isAdmin']=true;
+                }
+                return $user;
+            };
             if (!$s['settings']) { throw new Problem(409,'Bitte MyWish zuerst einrichten.'); }
             $linked=null;
             foreach ($s['users'] as $row) { if ($row['googleSub']===$identity['sub']) { $linked=$row; } }
@@ -276,17 +285,17 @@ final class App
                 if ($current['id']!==($pending['userId'] ?? null) || $current['sessionVersion']!==($pending['version'] ?? null)) { throw new Problem(403,'Deine Sitzung hat sich geändert. Bitte erneut beginnen.'); }
                 if ($purpose==='reauthenticate') {
                     if ($current['googleSub']!==$identity['sub']) { throw new Problem(403,'Bitte dasselbe Google-Konto wie bei deiner Anmeldung verwenden.'); }
-                    return $current;
+                    return $finish($current);
                 }
                 if ($purpose!=='link' || ($linked && $linked['id']!==$current['id']) || ($current['googleSub']!==null && $current['googleSub']!==$identity['sub'])) { throw new Problem(409,'Dieses Google-Konto kann nicht verknüpft werden.'); }
                 foreach ($s['users'] as &$row) { if ($row['id']===$current['id']) {
                     $row['googleSub']=$identity['sub']; $row['googleEmail']=$identity['email']; $row['sessionVersion']++; $current=$row;
                 } } unset($row);
-                return $current;
+                return $finish($current);
             }
             if ($linked) {
                 foreach ($s['users'] as &$row) { if ($row['id']===$linked['id']) { $row['googleEmail']=$identity['email']; $linked=$row; } } unset($row);
-                return $linked;
+                return $finish($linked);
             }
             if (($this->registrationOverride ?? $s['settings']['registration'])!=='open') { throw new Problem(403,'Die Registrierung ist geschlossen. Bestehende Konten können weiterhin angemeldet werden.'); }
             $ip=hash('sha256',$_SERVER['REMOTE_ADDR'] ?? 'local');
@@ -296,7 +305,7 @@ final class App
             if (!preg_match('/^[a-z0-9][a-z0-9._@+\-]{2,119}$/D',$username)) { $username='google-'.substr(hash('sha256',$identity['sub']),0,24); }
             foreach ($s['users'] as $row) { if ($row['username']===$username) { throw new Problem(409,'Es gibt bereits ein Konto mit dieser Kennung. Bitte mit deinem bisherigen Passwort anmelden und Google unter Mein Konto verknüpfen.'); } }
             $user=['id'=>self::id(),'username'=>$username,'name'=>$identity['name'],'passwordHash'=>null,'sessionVersion'=>1,'createdAt'=>self::now(),'googleSub'=>$identity['sub'],'googleEmail'=>$identity['email'],'isAdmin'=>false];
-            $s['users'][]=$user; $s['attempts'][]=['ip'=>$ip,'at'=>time(),'kind'=>'register']; return $user;
+            $s['users'][]=$user; $s['attempts'][]=['ip'=>$ip,'at'=>time(),'kind'=>'register']; return $finish($user);
         });
         self::establishSession($user);
         if ($purpose==='reauthenticate') {
