@@ -7,6 +7,7 @@ final class Problem extends \RuntimeException
     public function __construct(public int $status, string $message, public ?string $reason = null) { parent::__construct($message); }
 }
 
+require_once __DIR__.'/StorageProtection.php';
 require_once __DIR__.'/DiskStorage.php';
 
 final class Store
@@ -44,7 +45,7 @@ final class Store
     public function transaction(callable $callback): mixed
     {
         return $this->locked(LOCK_EX,function() use ($callback) {
-            $this->disk->initialize();
+            $this->disk->initialize(PHP_SAPI==='cli');
             return $this->dataLocked(LOCK_EX,function() use ($callback) {
                 $state=$this->disk->load();$before=$state;$result=$callback($state);
                 if ($state!==$before) { $this->disk->commit($state,$before); }
@@ -63,6 +64,13 @@ final class Store
         return $this->locked(LOCK_SH,fn()=>$this->dataLocked(LOCK_SH,fn()=>$this->disk->settings()));
     }
     public function openImage(array $image): mixed { return $this->locked(LOCK_SH,fn()=>$this->dataLocked(LOCK_SH,fn()=>$this->disk->openImage($image))); }
+    public function migrate(): array
+    {
+        return $this->locked(LOCK_EX,function() {
+            $this->disk->initialize(true);
+            return $this->dataLocked(LOCK_EX,function() { $this->disk->relocateDefault();return $this->disk->verify(); });
+        });
+    }
     public function verify(): array
     {
         if (!$this->disk->hasLayout()) { $this->transaction(static fn(&$state)=>null); }

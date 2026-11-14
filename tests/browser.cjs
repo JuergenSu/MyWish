@@ -23,6 +23,10 @@ fs.mkdirSync(artifacts, { recursive: true });
         path.basename(source),
       ),
   });
+  fs.writeFileSync(
+    path.join(doc, "config.php"),
+    `<?php return ['data'=>${JSON.stringify(path.join(temp, "data"))}];`,
+  );
   const port = await new Promise((resolve) => {
     const s = net.createServer();
     s.listen(0, "127.0.0.1", () => {

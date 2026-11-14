@@ -24,6 +24,12 @@ const iphone =
     );
   fs.cpSync(root, web, { recursive: true, filter });
   fs.cpSync(root, path.join(web, "mywish"), { recursive: true, filter });
+  for (const dir of [web, path.join(web, "mywish")]) {
+    fs.writeFileSync(
+      path.join(dir, "config.php"),
+      `<?php return ['data'=>${JSON.stringify(path.join(temp, "data-" + path.basename(dir)))}];`,
+    );
+  }
   fs.mkdirSync(artifacts, { recursive: true });
   const log = fs.openSync(path.join(artifacts, "install-server.log"), "w");
   const port = await new Promise((resolve) => {

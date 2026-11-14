@@ -39,7 +39,7 @@ Zähler und Suchadressen liegen geschützt unter `storage/openai-search.php`, de
 
 Bildquellen wurden mit Schema 3 eingeführt. Aktuell verwendet MyWish **Schema 4** mit privaten JSON-Sammlungen und separaten Bilddateien. Gültige Schemata 1–3 werden unter Lock nach bytegenauem Backup migriert; Quellen, Konten, Google-Verknüpfungen, Wünsche und Reservierungen bleiben erhalten. [Konzept und Migrationslauf](STORAGE.md).
 
-Bei Updates `storage/`, `config.php` und den privaten Datenordner erhalten. Der OpenAI-Block bleibt in `config.php`; Bildquellen stehen in den JSON-Bildverweisen. Backups benötigen JSON-Dateien und Bilder zusammen. Der Suchcache muss nicht mitgesichert werden. Ein Rollback auf älteren Code erfordert dessen passenden Datenstand aus dem Backup.
+Bei Updates `storage/` einschließlich `data-v4/` und `.htaccess` sowie `config.php` erhalten; bei optionalem externen Datenpfad auch diesen sichern. Der OpenAI-Block bleibt in `config.php`; Bildquellen stehen in den JSON-Bildverweisen. Backups benötigen JSON-Dateien und Bilder zusammen. Der Suchcache muss nicht mitgesichert werden. Ein Rollback auf älteren Code erfordert dessen passenden Datenstand aus dem Backup.
 
 ## Prüfungen
 

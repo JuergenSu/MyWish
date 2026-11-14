@@ -44,10 +44,10 @@ Die manuelle Google-Bildersuche ist entfernt. Eine bekannte direkte Bildadresse 
 
 ## Installation durch Kopieren
 
-1. PHP **8.2 oder neuer** aktivieren. Pflicht: JSON, Session, Filter, Hash, OpenSSL, Standardfunktionen inklusive `getimagesizefromstring`, `flock`, `rename`. Für Import zusätzlich cURL und DOM/libxml; mbstring und intl sind optional. Für neue Bilder muss **GD mit JPEG-, PNG- und WebP-Unterstützung** aktiviert sein; Imagick ist nicht nötig. Ohne GD bleiben vorhandene Bilder lesbar, neue Uploads melden den fehlenden Hosting-Baustein.
-2. Anwendung in einen frischen Webordner kopieren, z. B. `/` oder `/mywish/`. Entwicklungsordner `.git`, `tests`, `.github` und `docs` müssen nicht hochgeladen werden. `src`, `assets`, `auth` und `vendor` gehören zur Anwendung.
+1. PHP **8.2 oder neuer** aktivieren. Pflicht: cURL (für die Storage-Schutzprüfung), JSON, Session, Filter, Hash, OpenSSL, Standardfunktionen inklusive `getimagesizefromstring`, `flock`, `rename`. Für Import zusätzlich cURL und DOM/libxml; mbstring und intl sind optional. Für neue Bilder muss **GD mit JPEG-, PNG- und WebP-Unterstützung** aktiviert sein; Imagick ist nicht nötig. Ohne GD bleiben vorhandene Bilder lesbar, neue Uploads melden den fehlenden Hosting-Baustein.
+2. Anwendung in einen frischen Webordner kopieren, z. B. `/` oder `/mywish/`. Entwicklungsordner `.git`, `tests`, `.github` und `docs` müssen nicht hochgeladen werden. `src`, `assets`, `auth`, `vendor` und **`storage/.htaccess`** gehören zur Anwendung; versteckte Dateien mitkopieren.
 3. PHP muss `storage/` lesen/schreiben können. Möglichst nur dem PHP-Benutzer Rechte geben (Ordner 0700 bzw. passende Gruppenrechte; niemals pauschal 0777). Lokales Dateisystem mit funktionierendem `flock`/atomarem `rename` nutzen, kein ungetestetes NFS.
-4. **Schema 4:** Echte JSON- und Bilddateien liegen in einem privaten Ordner **außerhalb des Webroots**. Standardmäßig wählt MyWish einen Ordner neben dem DocumentRoot oder `storage/data-v4`, wenn `storage` bereits privat liegt. Falls dort Schreibrechte fehlen, in `config.php` `data` auf einen privaten absoluten Pfad setzen. Der bisherige `storage`-Ordner behält geschützte Verweise, Migrationsbackups, Sitzungen und Suchcaches. [Konzept, Migration und Hosting](docs/STORAGE.md).
+4. **Schema 4:** JSON-Dateien und separate Bilder liegen unter **`storage/data-v4/` im Webroot**, geschützt durch `storage/.htaccess` (`Require all denied`). Apache 2.4 muss die Regel erlauben, z. B. `AllowOverride AuthConfig` oder `All`. MyWish prüft den tatsächlichen HTTP-Zugriff vor dem Schreiben. PHP benötigt für diese einmalige Prüfung und das Löschen des Migrationsskripts auch Schreibrechte im App-Ordner. Alle Datenpfade bleiben beim Kopieren der Anwendung gültig. [Hosting, Migration und Backup](docs/STORAGE.md).
 5. Im Browser über **HTTPS** `index.php` öffnen (alternativ `setup.php`). Site-Namen, erstes normales Konto und Registrierungsmodus festlegen. Setup wird atomar abgeschlossen und danach gesperrt. Bei offener Registrierung können andere sich selbst Konten anlegen. Bei geschlossener Registrierung bleibt es bei vorhandenen Konten.
 6. Eine Liste und einen Wunsch erstellen. Mit einem zweiten Konto die Reservierung prüfen. Der Eigentümer darf davon nichts sehen.
 
@@ -55,12 +55,16 @@ Keine Rewrite-Regeln nötig. Der Basis-Pfad wird aus dem ausgeführten PHP-Skrip
 
 **Vor öffentlicher Freigabe:** Installation nur selbst erreichbar machen (z. B. Webspace-Verzeichnisschutz), Setup abschließen, dann Schutz entfernen. Die erste Person mit Zugriff auf eine frische Installation kann sie initialisieren. PHP-Ausführung muss für `.php` überall sichergestellt sein. Ein Server, der PHP-Quelltext ausliefert, ist grundsätzlich unsicher.
 
+### Bestehende Installation aktualisieren
+
+Code aktualisieren und `storage/` sowie die bestehende `config.php` erhalten. Dann **`https://deine-domain/mywish/migrate-storage.php`** öffnen (bei Installation im Domain-Hauptordner entsprechend `/migrate-storage.php`) und **Migration starten** wählen. Die Anwendung zeigt bis dahin einen Wartungshinweis. Der Lauf prüft den Webserver-Schutz, erstellt eine bytegenaue Sicherung, übernimmt alle Daten und Bilder (auch einen bereits ausgelagerten Schema-4-Bestand) und **löscht anschließend das Migrationsskript selbst**. Bei einem Fehler bleiben der bisherige Bestand und das Skript für einen erneuten Versuch erhalten. Details und Speicherbedarf: [STORAGE.md](docs/STORAGE.md).
+
 ### PHP-Einstellungen
 
 - `file_uploads=On`, **`upload_max_filesize=8M`**, **`post_max_size=10M`** oder größer. Die mitgelieferte `.user.ini` setzt diese Werte bei CGI/FPM-Hostern, sofern der Hoster sie zulässt; andernfalls im Hosting-Panel ändern. PHP-Konfigurationscaches können Änderungen verzögert übernehmen. Die App begrenzt einzelne Uploads auf 8 MB und ganze Anfragen auf 10 MB. Größere Bilder werden auf 1200 Pixel verkleinert; 6000 px pro Quellseite und 16 Megapixel begrenzen den Dekodieraufwand.
 - Sitzungen bleiben **14 Tage seit der letzten Nutzung** gültig, auch nach Schließen des Browsers. Jede Anfrage erneuert Cookie und Frist. Geschützte Sitzungsdateien liegen unter `storage/sessions/` beziehungsweise im konfigurierten Datenordner; PHP muss diesen Unterordner anlegen und beschreiben dürfen. Die eigene Bereinigung ist unabhängig vom kürzeren PHP-Standardlimit des Hosters. Cookie: HttpOnly, SameSite=Lax, bei HTTPS Secure. Abmelden, Passwortwechsel und Kontolöschung behalten ihre sofortige Wirkung.
 - `display_errors=Off`; technische Fehlerantworten enthalten keine Stacktraces. Serverlogs schützen. `memory_limit` passend zum Datenvolumen wählen (z. B. 128M oder mehr).
-- Ausgehendes Netz ist optional. cURL-Import nutzt direkte, DNS-gepinnte öffentliche IPv4-Verbindungen; wenn der Hoster das blockiert, manuell erfassen. Es gibt keine externen Browser-Tracker, CDNs oder Hotlink-Bilder.
+- Für den Standard-Storage muss der Webserver sich einmalig über seine lokale Adresse erreichen können. Weitere ausgehende Verbindungen sind optional. cURL-Import nutzt direkte, DNS-gepinnte öffentliche IPv4-Verbindungen; wenn der Hoster das blockiert, manuell erfassen. Es gibt keine externen Browser-Tracker, CDNs oder Hotlink-Bilder.
 
 ### Apache und Nginx
 

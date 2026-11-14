@@ -65,6 +65,8 @@ Diese Provider-Tests benötigen keine echten Credentials. Der Live-Abnahmeschrit
 
 ## Getrennte Datenspeicherung
 
-- `php tests/storage.php`: 111 Prüfungen für Migration der Schemata 1–3 mit bytegenauem Backup und unveränderten Bildbytes, Konten und Reservierungen; Deduplizierung, idempotenter Wiederanlauf, Schreibfehler vor Commit, beschädigte JSON-/Bilddateien, sichere Ablage außerhalb des Webroots, CLI-Prüflauf/Migration/Backup/Prüfer und Bereinigung geprüft.
+- `php tests/storage.php`: 112 Prüfungen für Migration der Schemata 1–3 mit bytegenauem Backup und unveränderten Bildbytes, Konten und Reservierungen; Deduplizierung, idempotenter Wiederanlauf, Schreibfehler vor Commit, beschädigte JSON-/Bilddateien, Abwehr ungeprüfter Ablage im Webroot, CLI-Prüflauf/Migration/Backup/Prüfer und Bereinigung geprüft.
 - `php -d memory_limit=512M tests/storage-performance.php`: zwölf synthetische PNGs, ungefähr 29 MB alter JSON-Bestand; aktuelle Metadaten ungefähr 9 KB. Speicher und reine Lesezeit werden getrennt gemessen; keine Behauptung über vollständige Seitenladezeiten. [Messwerte und Grenzen](STORAGE.md#messung-und-grenzen).
 - HTTP-Verträge einschließlich zehn konkurrierender Reservierungen, Eigentümer-/Gastschutz, Bilder, Root-/Unterordnerbetrieb und Backup-Wiederherstellung werden mit dem neuen Speicher ausgeführt. Direkte URLs dürfen keine rohen JSON-/Bilddateien ausliefern.
+
+- `python3 tests/web-migration.py`: echte Apache-Prüfung für Deny-Schutz und ignorierte `.htaccess`, expliziten Browserlauf, CSRF, vollständiges Backup, getrennte Bilder, Selbstlöschung, Wiederholungs-/Parallelaufrufe sowie Copy-Deployment in Root und Unterordner. Mit `MYWISH_WEB_MIGRATION_BROWSER=1` zusätzlich Chromium-Formularlauf und sechs Axe-/Overflow-Prüfungen.

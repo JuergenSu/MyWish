@@ -257,6 +257,8 @@ with tempfile.TemporaryDirectory(prefix='mywish-http-') as temp:
   shutil.copytree(ROOT,dest,dirs_exist_ok=True,ignore=shutil.ignore_patterns('.git','state.php','layout.php','lock.php','tmp-*.php','config.php','.artifacts','__pycache__'))
  for dest in [doc,doc/'mywish']:
   (dest/'import-test.php').write_text("<?php require __DIR__.'/tests/fixtures/import-transport.php'; require __DIR__.'/index.php';")
+ for dest in [doc,doc/'mywish']:
+  (dest/'config.php').write_text("<?php return ['data'=>"+json.dumps(str(pathlib.Path(temp)/('data-root' if dest==doc else 'data-sub')))+'];')
  # Distinct stores for fresh root/subdirectory installs.
  sock=socket.socket(); sock.bind(('127.0.0.1',0)); port=sock.getsockname()[1]; sock.close()
  env=dict(os.environ,PHP_CLI_SERVER_WORKERS='4')
@@ -271,10 +273,10 @@ with tempfile.TemporaryDirectory(prefix='mywish-http-') as temp:
    scenario(f'http://127.0.0.1:{port}'+path)
    print('PASS copy deployment, permissions, privacy and races:',path)
   # Operator registration override is enforced server-side.
-  (doc/'config.php').write_text("<?php return ['registration'=>'closed'];")
+  (doc/'config.php').write_text("<?php return ['data'=>"+json.dumps(str(pathlib.Path(temp)/'data-root'))+",'registration'=>'closed'];")
   closed=Client(f'http://127.0.0.1:{port}/')
   closed.post('register',{'name':'Blocked','username':'blocked','password':'Closed!1'},403)
-  (doc/'config.php').unlink()
+  (doc/'config.php').write_text("<?php return ['data'=>"+json.dumps(str(pathlib.Path(temp)/'data-root'))+'];')
   # Bad storage permissions produce a JSON startup diagnostic, never a fatal page.
   (doc/'storage').chmod(0o500)
   code,body,_=closed.request('api/index.php?action=state')
@@ -282,6 +284,7 @@ with tempfile.TemporaryDirectory(prefix='mywish-http-') as temp:
   (doc/'storage').chmod(0o700)
   # Two first-setup requests cannot create two bootstrap accounts.
   race=doc/'setup-race'; shutil.copytree(ROOT,race,ignore=shutil.ignore_patterns('.git','state.php','layout.php','lock.php','config.php','.artifacts','__pycache__'))
+  (race/'config.php').write_text("<?php return ['data'=>"+json.dumps(str(pathlib.Path(temp)/'data-race'))+'];')
   starters=[Client(f'http://127.0.0.1:{port}/setup-race/') for _ in range(2)]
   def initialize(client):
    payload={'name':'First','username':'first','password':'Setup123','siteName':'Race','registration':'open'}
@@ -295,6 +298,7 @@ with tempfile.TemporaryDirectory(prefix='mywish-http-') as temp:
   shutil.rmtree(data_directory(race/'storage'));(race/'storage/layout.php').unlink()
   legacy_state['users'][0]['passwordHash']=subprocess.check_output([PHP,'-r','echo password_hash($argv[1], PASSWORD_DEFAULT);','Previously valid passphrase'],text=True)
   legacy_file.write_text(guard+'\n'+json.dumps(legacy_state))
+  subprocess.run([PHP,str(ROOT/'tools/migrate-storage.php'),'--storage='+str(race/'storage'),'--data='+str(pathlib.Path(temp)/'data-race'),'--web-root='+str(doc)],check=True,capture_output=True)
   legacy=Client(f'http://127.0.0.1:{port}/setup-race/')
   legacy.post('login',{'username':'first','password':'Previously valid passphrase'})
   legacy.post('account',{'name':'First updated','currentPassword':'Previously valid passphrase','newPassword':''})

@@ -26,7 +26,7 @@ class Client:
   code,body,_=self.request('api/index.php?action='+action,json.dumps(data).encode(),{'Content-Type':'application/json','X-CSRF-Token':self.csrf if token is None else token});r=json.loads(body);self.csrf=r.get('csrf',self.csrf)
   check(code==expected and r['ok']==(expected<400),f'{action}: {code}: {r}');return r.get('data',r.get('error'))
 def config(dest,key='sk-test-server-key',limit=100):
- (dest/'config.php').write_text("<?php return ['openai'=>['api_key'=>"+json.dumps(key)+",'model'=>'test-model','daily_limit'=>"+str(limit)+"]];")
+ (dest/'config.php').write_text("<?php return ['data'=>"+json.dumps(str(pathlib.Path(temp)/('data-'+dest.name)))+",'openai'=>['api_key'=>"+json.dumps(key)+",'model'=>'test-model','daily_limit'=>"+str(limit)+"]];")
 def used(dest):
  p=dest/'storage/openai-search.php'
  return json.loads(p.read_text().split('\n',1)[1])['used'] if p.exists() else 0

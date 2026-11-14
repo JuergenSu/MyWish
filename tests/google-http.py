@@ -58,6 +58,7 @@ with tempfile.TemporaryDirectory(prefix='mywish-google-http-') as temp:
  sock=socket.socket();sock.bind(('127.0.0.1',0));port=sock.getsockname()[1];sock.close()
  def config(folder,registration=None,enabled=True):
   values="'google'=>['client_id'=>'fixture.apps.googleusercontent.com','client_secret'=>'test-secret-only','redirect_uri'=>'http://127.0.0.1:%s%s/auth/google/callback.php']"%(port,folder) if enabled else "'google'=>[]"
+  values+=",'data'=>"+json.dumps(str(temp/('data-root' if not folder else 'data-sub')))
   if registration:values+=",'registration'=>'"+registration+"'"
   (doc/folder.lstrip('/')/'config.php').write_text('<?php return ['+values+'];')
  for folder in ['', '/mywish']:config(folder)
