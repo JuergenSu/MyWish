@@ -17,7 +17,7 @@ const php = process.env.PHP_BIN || "php";
     recursive: true,
     filter: (source) =>
       !/\/(\.git|node_modules|\.artifacts|__pycache__)(\/|$)/.test(source) &&
-      !["state.php", "lock.php", "config.php"].includes(
+      !["state.php", "layout.php", "lock.php", "config.php"].includes(
         path.basename(source),
       ) &&
       !/\/(backup-schema-.*|google-jwks.*)\.php$/.test(source),

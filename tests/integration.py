@@ -2,6 +2,7 @@
 """Isolated copy-deployment, HTTP contract, privacy and concurrency tests. No dependencies."""
 import concurrent.futures, http.cookiejar, json, os, pathlib, shutil, socket, subprocess, tempfile, time, urllib.request, urllib.error, urllib.parse
 from html.parser import HTMLParser
+from storage_helpers import data_directory,disk_state
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 PHP=os.environ.get('PHP_BIN','php')
 checks=0
@@ -150,6 +151,11 @@ def scenario(base):
  owner.post('deleteWish',{'id':multi,'confirm':'yes'})
  for u in users:
   data=u.get('state')[1]['data']; check(all(w['id']!=multi for w in data['wishes']),'Deleted wish disappears')
+ private=data_directory(doc/urllib.parse.urlparse(base).path.strip('/')/'storage')
+ manifest=json.loads((private/'manifest.json').read_text())
+ code,body,_=guest.request('storage/layout.php');check(code==404 and str(private).encode() not in body,'Protected locator does not expose the private data path')
+ for path in ['storage/manifest.json','storage/records/'+manifest['collections']['users'],'../'+private.name+'/manifest.json']:
+  code,body,headers=guest.request(path);safe_fallback=code==200 and headers.get('Content-Type','').startswith('text/html') and body.startswith(b'<!doctype html>');check((code in [400,403,404] or safe_fallback) and b'passwordHash' not in body and b'"collections"' not in body,'Plain JSON has no public route')
  code,body,_=guest.request('storage/state.php'); check(code==404 and b'passwordHash' not in body and b'Antonia' not in body,'Guarded storage not downloadable')
  code,body,_=guest.request('api/index.php?action=reserve&id='+wish); check(code==405,'No mutating GET')
  code,body,_=owner.request('api/index.php?action=saveWish',b'{oops',{'Content-Type':'application/json','X-CSRF-Token':owner.csrf}); check(code==400 and not json.loads(body)['ok'],'Malformed JSON')
@@ -246,9 +252,9 @@ def scenario(base):
  check(owner.get('state')[0]==401,'Account deletion invalidates session')
 
 with tempfile.TemporaryDirectory(prefix='mywish-http-') as temp:
- doc=pathlib.Path(temp)
+ doc=pathlib.Path(temp)/'public';doc.mkdir()
  for dest in [doc,doc/'mywish']:
-  shutil.copytree(ROOT,dest,dirs_exist_ok=True,ignore=shutil.ignore_patterns('.git','state.php','lock.php','tmp-*.php','config.php','.artifacts','__pycache__'))
+  shutil.copytree(ROOT,dest,dirs_exist_ok=True,ignore=shutil.ignore_patterns('.git','state.php','layout.php','lock.php','tmp-*.php','config.php','.artifacts','__pycache__'))
  for dest in [doc,doc/'mywish']:
   (dest/'import-test.php').write_text("<?php require __DIR__.'/tests/fixtures/import-transport.php'; require __DIR__.'/index.php';")
  # Distinct stores for fresh root/subdirectory installs.
@@ -275,7 +281,7 @@ with tempfile.TemporaryDirectory(prefix='mywish-http-') as temp:
   check(code==503 and not json.loads(body)['ok'],'Read-only storage diagnostic')
   (doc/'storage').chmod(0o700)
   # Two first-setup requests cannot create two bootstrap accounts.
-  race=doc/'setup-race'; shutil.copytree(ROOT,race,ignore=shutil.ignore_patterns('.git','state.php','lock.php','config.php','.artifacts','__pycache__'))
+  race=doc/'setup-race'; shutil.copytree(ROOT,race,ignore=shutil.ignore_patterns('.git','state.php','layout.php','lock.php','config.php','.artifacts','__pycache__'))
   starters=[Client(f'http://127.0.0.1:{port}/setup-race/') for _ in range(2)]
   def initialize(client):
    payload={'name':'First','username':'first','password':'Setup123','siteName':'Race','registration':'open'}
@@ -284,21 +290,30 @@ with tempfile.TemporaryDirectory(prefix='mywish-http-') as temp:
   check(sorted(codes)==[201,409],'Atomic first setup: '+str(codes))
   # A hash from the previous policy remains valid without a special character.
   legacy_file=race/'storage/state.php'
-  guard,raw=legacy_file.read_text().split('\n',1)
-  legacy_state=json.loads(raw)
+  guard=legacy_file.read_text().split('\n',1)[0]
+  legacy_state=disk_state(race/'storage');legacy_state['schemaVersion']=3
+  shutil.rmtree(data_directory(race/'storage'));(race/'storage/layout.php').unlink()
   legacy_state['users'][0]['passwordHash']=subprocess.check_output([PHP,'-r','echo password_hash($argv[1], PASSWORD_DEFAULT);','Previously valid passphrase'],text=True)
   legacy_file.write_text(guard+'\n'+json.dumps(legacy_state))
   legacy=Client(f'http://127.0.0.1:{port}/setup-race/')
   legacy.post('login',{'username':'first','password':'Previously valid passphrase'})
   legacy.post('account',{'name':'First updated','currentPassword':'Previously valid passphrase','newPassword':''})
   legacy.post('account',{'name':'First updated','currentPassword':'Previously valid passphrase','newPassword':'abcdefg'},422)
-  # Validate portable backup and roundtrip on the second instance.
-  original=(doc/'storage/state.php').read_bytes()
-  (doc/'mywish/storage/state.php').write_bytes(original)
-  check(subprocess.run([PHP,str(ROOT/'tools/check-backup.php'),str(doc/'mywish/storage/state.php')],capture_output=True).returncode==0,'Backup roundtrip validates')
-  (doc/'mywish/storage/state.php').write_text('<?php broken')
+  # A consistent directory backup includes current JSON and every referenced image.
+  reset="require $argv[1].'/src/Store.php';$s=new MyWish\\Store($argv[2]);$s->transaction(function(&$state){$state['attempts']=[];});"
+  subprocess.run([PHP,'-r',reset,str(ROOT),str(doc/'storage')],check=True,capture_output=True)
+  backup=pathlib.Path(temp)/'portable-backup'
+  subprocess.run([PHP,str(ROOT/'tools/backup-storage.php'),'--storage='+str(doc/'storage'),'--target='+str(backup),'--web-root='+str(doc)],check=True,capture_output=True)
+  check(subprocess.run([PHP,str(ROOT/'tools/check-backup.php'),str(backup)],capture_output=True).returncode==0,'Directory backup roundtrip validates')
+  restored=doc/'restored';shutil.copytree(ROOT,restored,ignore=shutil.ignore_patterns('.git','state.php','layout.php','lock.php','config.php','.artifacts','__pycache__'))
+  (restored/'config.php').write_text("<?php return ['data'=>"+json.dumps(str(backup))+'];')
+  restored_client=Client(f'http://127.0.0.1:{port}/restored/')
+  restored_client.post('login',{'username':'giver1','password':'abcdefgh'})
+  check(restored_client.get('state')[0]==200,'Restored JSON/image snapshot is usable in another installation')
+  private=data_directory(doc/'mywish/storage')
+  (private/'manifest.json').write_text('{broken')
   code,body,_=Client(f'http://127.0.0.1:{port}/').request('mywish/api/index.php?action=state')
-  check(code==503 and not json.loads(body)['ok'],'Corrupt storage gives controlled JSON error')
+  check(code==503 and not json.loads(body)['ok'],'Corrupt JSON manifest gives controlled error')
   print(f'OK: {checks} HTTP/integration checks')
  finally:
   import signal

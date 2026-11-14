@@ -15,11 +15,15 @@ const iphone =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 (async () => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "mywish-install-"));
+  const web = path.join(temp, "public");
+  fs.mkdirSync(web);
   const filter = (source) =>
     !/\/(\.git|node_modules|\.artifacts|__pycache__)(\/|$)/.test(source) &&
-    !["state.php", "lock.php", "config.php"].includes(path.basename(source));
-  fs.cpSync(root, temp, { recursive: true, filter });
-  fs.cpSync(root, path.join(temp, "mywish"), { recursive: true, filter });
+    !["state.php", "layout.php", "lock.php", "config.php"].includes(
+      path.basename(source),
+    );
+  fs.cpSync(root, web, { recursive: true, filter });
+  fs.cpSync(root, path.join(web, "mywish"), { recursive: true, filter });
   fs.mkdirSync(artifacts, { recursive: true });
   const log = fs.openSync(path.join(artifacts, "install-server.log"), "w");
   const port = await new Promise((resolve) => {
@@ -31,7 +35,7 @@ const iphone =
   });
   const server = spawn(
     process.env.PHP_BIN || "php",
-    ["-S", `127.0.0.1:${port}`, "-t", temp],
+    ["-S", `127.0.0.1:${port}`, "-t", web],
     { stdio: ["ignore", log, log], detached: true },
   );
   let browser;

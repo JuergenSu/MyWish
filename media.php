@@ -3,7 +3,7 @@ declare(strict_types=1);
 require __DIR__.'/src/bootstrap.php';
 require __DIR__.'/src/Http.php';
 try {
-    $image=$app->store->transaction(function(&$s) {
+    $image=$app->store->read(function(&$s) {
         $type=$_GET['type'] ?? '';
         if ($type==='preview') {
             MyWish\App::user($s);
@@ -23,5 +23,10 @@ try {
     });
     if (!in_array($image['mime'],['image/jpeg','image/png','image/webp'],true)) { throw new MyWish\Problem(404,'Bild nicht gefunden.'); }
     header('Content-Type: '.$image['mime']); header('Content-Disposition: inline');
-    echo base64_decode($image['data'],true);
+    if (isset($image['data'])) { echo base64_decode($image['data'],true); }
+    else {
+        $file=$app->store->openImage($image);
+        try { header('Content-Length: '.(string)$image['bytes']);fpassthru($file); }
+        finally { fclose($file); }
+    }
 } catch (Throwable $ex) { [$status,$message]=safeError($ex); http_response_code($status); header('Content-Type: text/plain; charset=utf-8'); echo $message; }

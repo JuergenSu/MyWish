@@ -1,6 +1,6 @@
 # MyWish 🎁
 
-Eine kleine, selbst gehostete Wunschwelt für Freunde und Familie. PHP 8.2+, HTML, CSS, Vanilla JavaScript und geschützte JSON-Dateien. Keine Datenbank, kein Composer, kein Node, kein Cron und kein SMTP im Betrieb.
+Eine kleine, selbst gehostete Wunschwelt für Freunde und Familie. PHP 8.2+, HTML, CSS, Vanilla JavaScript und private JSON-Dateien und separate Bilddateien. Keine Datenbank, kein Composer, kein Node, kein Cron und kein SMTP im Betrieb.
 
 ## V1
 
@@ -47,7 +47,7 @@ Die manuelle Google-Bildersuche ist entfernt. Eine bekannte direkte Bildadresse 
 1. PHP **8.2 oder neuer** aktivieren. Pflicht: JSON, Session, Filter, Hash, OpenSSL, Standardfunktionen inklusive `getimagesizefromstring`, `flock`, `rename`. Für Import zusätzlich cURL und DOM/libxml; mbstring und intl sind optional. Für neue Bilder muss **GD mit JPEG-, PNG- und WebP-Unterstützung** aktiviert sein; Imagick ist nicht nötig. Ohne GD bleiben vorhandene Bilder lesbar, neue Uploads melden den fehlenden Hosting-Baustein.
 2. Anwendung in einen frischen Webordner kopieren, z. B. `/` oder `/mywish/`. Entwicklungsordner `.git`, `tests`, `.github` und `docs` müssen nicht hochgeladen werden. `src`, `assets`, `auth` und `vendor` gehören zur Anwendung.
 3. PHP muss `storage/` lesen/schreiben können. Möglichst nur dem PHP-Benutzer Rechte geben (Ordner 0700 bzw. passende Gruppenrechte; niemals pauschal 0777). Lokales Dateisystem mit funktionierendem `flock`/atomarem `rename` nutzen, kein ungetestetes NFS.
-4. **Empfohlen:** Daten außerhalb des öffentlichen Webroots speichern. `config.example.php` nach `config.php` kopieren und `storage` auf einen vorhandenen, beschreibbaren Ordner außerhalb des Webroots setzen. Ohne eigene Konfiguration liegt Storage in `storage/`; die Dateien tragen einen PHP-Abbruchschutz, zusätzlich schützt dort `.htaccess`.
+4. **Schema 4:** Echte JSON- und Bilddateien liegen in einem privaten Ordner **außerhalb des Webroots**. Standardmäßig wählt MyWish einen Ordner neben dem DocumentRoot oder `storage/data-v4`, wenn `storage` bereits privat liegt. Falls dort Schreibrechte fehlen, in `config.php` `data` auf einen privaten absoluten Pfad setzen. Der bisherige `storage`-Ordner behält geschützte Verweise, Migrationsbackups, Sitzungen und Suchcaches. [Konzept, Migration und Hosting](docs/STORAGE.md).
 5. Im Browser über **HTTPS** `index.php` öffnen (alternativ `setup.php`). Site-Namen, erstes normales Konto und Registrierungsmodus festlegen. Setup wird atomar abgeschlossen und danach gesperrt. Bei offener Registrierung können andere sich selbst Konten anlegen. Bei geschlossener Registrierung bleibt es bei vorhandenen Konten.
 6. Eine Liste und einen Wunsch erstellen. Mit einem zweiten Konto die Reservierung prüfen. Der Eigentümer darf davon nichts sehen.
 
@@ -79,17 +79,27 @@ Die bestehenden PHP-FPM-Regeln des Hosters beibehalten. Kein pauschales `locatio
 
 ## Backup, Wiederherstellung, Update
 
-Es gibt bewusst keinen Browser-Admin und keinen Datendownload aller Konten. Der Betreiber sichert über den Webspace-Dateimanager/SFTP:
+Das neue **Schema 4** trennt kleine JSON-Sammlungen und echte Bilddateien. Ein atomarer Manifestwechsel aktiviert Änderungen gemeinsam. Listen-/Kontoabfragen lesen keine Bildbytes; nur geänderte JSON-Sammlungen werden neu geschrieben. Identische Bilder werden dedupliziert. [Dateiaufbau und Details](docs/STORAGE.md).
 
-1. Für eine konsistente Sicherung `storage/state.php` als **einzelne Datei** herunterladen; dank atomarem Ersetzen enthält sie einen vollständigen Stand. Bei einem separaten Datenordner dort sichern. Bilder sind eingebettet; zusätzliche Medienkopien sind nicht nötig. `config.php` separat sichern.
-2. Sicherung vertraulich behandeln: Sie enthält Anzeigenamen, Benutzernamen, Passworthashes und Reservierungen. Passwörter werden nie im Klartext gespeichert. Passworthashes sind dennoch sensible Daten.
-3. Wiederherstellung zuerst in einem **frischen, zugriffsgeschützten zweiten Ordner** mit derselben App-Version testen: gesicherte Datei als `storage/state.php` kopieren, keine Einrichtung ausführen. PHP-Abbruchzeile nicht entfernen. Vorhandene Installation nicht versehentlich überschreiben.
-4. Optional lokal `php tools/check-backup.php /pfad/zur/state.php` ausführen. Schema-/Referenz-/Mengenfehler und beschädigtes JSON werden abgewiesen. Auch ohne CLI wird beim ersten Aufruf vollständig validiert. Eine beschädigte Datei wird nie automatisch durch leere Daten ersetzt.
-5. Erst nach erfolgreicher Prüfung und **bewusster Bestätigung durch den Betreiber**: Zugriff während Restore sperren, aktuellen Stand separat sichern, wiederhergestellte Datei per Dateimanager hochladen und umbenennen. Sessions am Hoster invalidieren oder neue Installation/Verzeichnis verwenden. Restore kann sonst ältere Kontopasswörter/Sitzungsversionen zurückbringen.
+Beim ersten Zugriff werden gültige alte Schemata 1–3 unter Lock und nach bytegenauem Backup migriert. Der neue Datenbestand wird vollständig geprüft, bevor die alte Datei abgelöst wird. Große Bestände können per CLI mit Prüflauf und höherem Speicherlimit migriert werden:
 
-Updates: Beim Wechsel auf die 14-Tage-Sitzungen ist einmaliges erneutes Anmelden nötig, da die bisherigen PHP-Sitzungen nicht übernommen werden. Danach bleiben neue Anmeldungen über Browser-Neustarts hinweg erhalten. Sitzungsdateien sind flüchtige Anmeldedaten und gehören nicht ins portable Backup. Zuerst Backup, dann Anwendungscode kopieren; **`storage/` und `config.php` erhalten**. Diese Version nutzt Schema 3 für Bildquellen. Gültige Schema-1-/Schema-2-Daten werden beim ersten Zugriff unter Lock erst gesichert und danach migriert; Details und Rollback in [OpenAI-Bildsuche](docs/OPENAI_IMAGES.md). Unbekannte ältere/neuere Schema-Versionen führen zu einer verständlichen Sperre. Code-Update und Datenstand getrennt halten. Serverwechsel: Code, Konfiguration und `state.php` mitnehmen; der Basis-Pfad wird neu erkannt.
+```sh
+php -d memory_limit=512M tools/migrate-storage.php --storage=/alter/storage --data=/privater/datenordner --web-root=/public_html --dry-run
+php -d memory_limit=512M tools/migrate-storage.php --storage=/alter/storage --data=/privater/datenordner --web-root=/public_html
+```
 
-Registrierungsmodus ändern: In `config.php` `'registration' => 'open'` oder `'closed'` setzen; `null` verwendet die ursprüngliche Setup-Einstellung. Die Änderung greift serverseitig sofort und benötigt keine Änderung der JSON-Daten. Kein Einladungsmodus in V1. Es gibt keinen E-Mail-Passwortreset; bei Passwortverlust zunächst eine noch aktive Sitzung verwenden oder der Betreiber ersetzt offline den Hash durch einen lokal mit `password_hash` erzeugten Hash und erhöht `sessionVersion` (niemals Klartext in der Datei). Niemand erhält dadurch eine Adminrolle.
+Neue Backups umfassen **JSON-Dateien und Bilder**, nicht nur `state.php`:
+
+```sh
+php tools/backup-storage.php --storage=/storage --target=/privater/neuer-sicherungsordner --web-root=/public_html
+php tools/check-backup.php /privater/neuer-sicherungsordner
+```
+
+Ohne CLI während der vollständigen Verzeichniskopie Schreibzugriffe stoppen. `config.php` separat sichern; Sitzungen und Suchcaches nicht übernehmen. Wiederherstellung zuerst in einer frischen geschützten Installation mit `data` auf die private Sicherung prüfen. Alte `state.php`-Sicherungen werden vom Prüfer weiterhin unterstützt. Ein Rollback benötigt alten Code und die passende alte Sicherung zusammen; neue Änderungen sind darin nicht enthalten. [Vorgehen und Wiederanlauf nach Abbruch](docs/STORAGE.md).
+
+Bei Updates `storage/`, `config.php` und den privaten Datenordner erhalten. Die Migration bewahrt IDs, Konten, Google-Verknüpfungen und bestehende Sitzungsversionen. Die einmalige Neuanmeldung beim früheren Wechsel auf 14-Tage-Sitzungen gilt nicht erneut für diese Speichermigration.
+
+Registrierungsmodus ändern: In `config.php` `'registration' => 'open'` oder `'closed'` setzen; `null` verwendet die ursprüngliche Setup-Einstellung. Die Änderung greift serverseitig sofort und benötigt keine Änderung der JSON-Daten. Kein Einladungsmodus in V1. Es gibt keinen E-Mail-Passwortreset; bei Passwortverlust zunächst eine noch aktive Sitzung verwenden oder der Betreiber ersetzt offline über eine `Store::transaction` den Hash durch einen lokal mit `password_hash` erzeugten Hash und erhöht `sessionVersion` (niemals Klartext speichern; versionierte JSON-Dateien nicht direkt bearbeiten). Niemand erhält dadurch eine Adminrolle.
 
 ## Verhaltensregeln und Grenzen
 
@@ -99,7 +109,7 @@ Registrierungsmodus ändern: In `config.php` `'registration' => 'open'` oder `'c
 - Alle Listen sind für jedes angemeldete Konto und über ihren jeweiligen Teilen-Link sichtbar. Wer einen Link erhält, kann ihn weitergeben. Es gibt keinen gesonderten Freigabeschalter; Löschen der Liste macht den Link ungültig. Deshalb nur in einer vertrauenswürdigen Gruppe betreiben; keine vertraulichen Gesundheits-/Adressdaten eintragen.
 - Amazon.de: Produkt-Titel, sichtbare Produktmerkmale, aktueller Preis und Hauptbild werden gezielt ausgelesen; Streich-/Empfehlungspreise und Platzhalterbilder bleiben außen vor. Tracking-/Mobil-Links mit ASIN werden vereinheitlicht. Bei 503, Captcha oder fehlenden Daten erscheint eine klare manuelle Vorschau statt einer vermeintlich erfolgreichen Übernahme. Bereits ausgefüllte Felder bleiben erhalten, Bilder eines vorherigen Imports werden nicht übernommen.
 - Import ist Best-Effort, keine Preis- oder Verfügbarkeitsgarantie. Manche Shops blockieren automatisches Abrufen. V1 importiert nur öffentliche IPv4-Ziele auf Port 80/443; keine privaten Netze, SVGs oder aktiven Inhalte. Bilder werden lokal geprüft und gespeichert, nicht extern im Browser geladen.
-- Kleine private Installation: Ein JSON-State inklusive Base64-Bilder wird pro Anfrage geladen/validiert; keine Zusage für große Communities oder riesige Bildbestände.
+- Kleine private Installation: JSON-Metadaten werden als Sammlungen gelesen; Bilder werden einzeln geladen. Keine Zusage für große Communities oder sehr große Metadatenbestände.
 - Kontolöschung entfernt aktuelle Daten, nicht alte Betreiber-Backups. Betreiber bestimmt Speicherfrist und löscht abgelaufene Sicherungen.
 
 ## Entwicklung und Prüfungen

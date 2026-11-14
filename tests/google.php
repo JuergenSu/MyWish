@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__).'/src/Store.php';
+require __DIR__.'/fixtures/storage-helpers.php';
 require dirname(__DIR__).'/src/App.php';
 require dirname(__DIR__).'/src/GoogleOidc.php';
 use MyWish\App;
@@ -82,11 +83,12 @@ try {
     // Migration: preserve exact legacy data in a guarded pre-migration backup.
     $legacy=$store->transaction(fn(&$s)=>$s); $legacy['schemaVersion']=1;
     foreach ($legacy['users'] as &$row) { unset($row['googleSub'],$row['googleEmail']); } unset($row);
-    $bytes=Store::GUARD.json_encode($legacy); file_put_contents($dir.'/state.php',$bytes);
+    $migrationDir=$dir.'/legacy';mkdir($migrationDir,0700);$store=new Store($migrationDir);
+    $bytes=Store::GUARD.json_encode($legacy); file_put_contents($migrationDir.'/state.php',$bytes);
     $migrated=$store->transaction(fn(&$s)=>$s);
-    $backups=glob($dir.'/backup-schema-1-*.php');
+    $backups=glob($migrationDir.'/backup-schema-1-*.php');
     ok(count($backups)===1 && file_get_contents($backups[0])===$bytes,'Exact migration backup');
     ok($migrated['schemaVersion']===Store::VERSION && $migrated['users'][0]['passwordHash']===$legacy['users'][0]['passwordHash'] && $migrated['lists']===$legacy['lists'],'Migration preserves existing data');
-    $store->transaction(fn(&$s)=>$s);ok(count(glob($dir.'/backup-schema-1-*.php'))===1,'Migration runs once');
+    $store->transaction(fn(&$s)=>$s);ok(count(glob($migrationDir.'/backup-schema-1-*.php'))===1,'Migration runs once');
     echo "OK: $checks Google OIDC/account/migration checks\n";
-} finally { $_SESSION=[]; session_destroy(); foreach(glob($dir.'/*') as $file){unlink($file);}rmdir($dir); }
+} finally { $_SESSION=[]; session_destroy(); removeTestTree($dir); }

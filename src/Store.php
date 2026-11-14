@@ -7,42 +7,86 @@ final class Problem extends \RuntimeException
     public function __construct(public int $status, string $message, public ?string $reason = null) { parent::__construct($message); }
 }
 
+require_once __DIR__.'/DiskStorage.php';
+
 final class Store
 {
     public const GUARD = "<?php http_response_code(404); exit; __halt_compiler();\n";
-    public const VERSION = 3;
-    public function __construct(private string $directory)
+    public const VERSION = 4;
+    private DiskStorage $disk;
+    public function __construct(private string $directory,?string $dataDirectory=null)
     {
         if (!is_dir($directory) || !is_writable($directory)) {
             throw new Problem(503, 'Der Datenordner fehlt oder ist nicht beschreibbar. Bitte Dateirechte beim Webspace-Anbieter prüfen.');
         }
+        $this->directory=realpath($directory);
+        $web=is_string($_SERVER['DOCUMENT_ROOT'] ?? null) && $_SERVER['DOCUMENT_ROOT']!=='' ? $_SERVER['DOCUMENT_ROOT'] : null;
+        $this->disk=new DiskStorage($this->directory,$dataDirectory,$web);
     }
     public static function empty(): array
     {
         return ['schemaVersion'=>self::VERSION, 'settings'=>null, 'users'=>[], 'lists'=>[], 'wishes'=>[], 'reservations'=>[], 'attempts'=>[]];
     }
+    private function locked(int $mode,callable $callback): mixed
+    {
+        $lock=@fopen($this->directory.'/lock.php','c+');
+        if (!$lock || !flock($lock,$mode)) { throw new Problem(503,'Die Datenspeicherung ist gerade nicht verfügbar. Bitte erneut versuchen.'); }
+        try { return $callback(); }
+        finally { flock($lock,LOCK_UN);fclose($lock); }
+    }
+    private function dataLocked(int $mode,callable $callback): mixed
+    {
+        $path=$this->disk->directory().'/transaction.lock';$lock=@fopen($path,'c+');
+        if (!$lock || !flock($lock,$mode)) { if (is_resource($lock)) { fclose($lock); }throw new Problem(503,'Der JSON-Datenbestand kann gerade nicht gesperrt werden.'); }
+        @chmod($path,0600);
+        try { return $callback(); }finally { flock($lock,LOCK_UN);fclose($lock); }
+    }
     public function transaction(callable $callback): mixed
     {
-        $lock = @fopen($this->directory.'/lock.php', 'c+');
-        if (!$lock || !flock($lock, LOCK_EX)) { throw new Problem(503, 'Die Datenspeicherung ist gerade nicht verfügbar. Bitte erneut versuchen.'); }
-        try {
-            $file = $this->directory.'/state.php';
-            $raw=is_file($file) ? (string)file_get_contents($file) : null;
-            $state=$raw!==null ? self::decode($raw) : self::empty();
-            $before=$state;
-            if ($state['schemaVersion']<self::VERSION) {
-                // Backup muss vollständig geschrieben sein, bevor Migration/Änderung erfolgt.
-                $this->write($this->directory.'/backup-schema-'.$state['schemaVersion'].'-'.gmdate('Ymd-His').'-'.bin2hex(random_bytes(6)).'.php',$raw);
-                if ($state['schemaVersion']===1) { foreach ($state['users'] as &$user) { $user['googleSub']=null; $user['googleEmail']=null; } unset($user); }
-                $state['schemaVersion']=self::VERSION;
-            }
-            $result=$callback($state);
-            if ($before!==$state) {
-                self::validate($state);
-                $this->write($file,self::GUARD.json_encode($state,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT));
-            }
-            return $result;
-        } finally { flock($lock, LOCK_UN); fclose($lock); }
+        return $this->locked(LOCK_EX,function() use ($callback) {
+            $this->disk->initialize();
+            return $this->dataLocked(LOCK_EX,function() use ($callback) {
+                $state=$this->disk->load();$before=$state;$result=$callback($state);
+                if ($state!==$before) { $this->disk->commit($state,$before); }
+                return $result;
+            });
+        });
+    }
+    public function read(callable $callback): mixed
+    {
+        if (!$this->disk->hasLayout()) { $this->transaction(static fn(&$state)=>null); }
+        return $this->locked(LOCK_SH,fn()=>$this->dataLocked(LOCK_SH,function() use ($callback) { $state=$this->disk->load();return $callback($state); }));
+    }
+    public function settings(): ?array
+    {
+        if (!$this->disk->hasLayout()) { $this->transaction(static fn(&$state)=>null); }
+        return $this->locked(LOCK_SH,fn()=>$this->dataLocked(LOCK_SH,fn()=>$this->disk->settings()));
+    }
+    public function openImage(array $image): mixed { return $this->locked(LOCK_SH,fn()=>$this->dataLocked(LOCK_SH,fn()=>$this->disk->openImage($image))); }
+    public function verify(): array
+    {
+        if (!$this->disk->hasLayout()) { $this->transaction(static fn(&$state)=>null); }
+        return $this->locked(LOCK_SH,fn()=>$this->dataLocked(LOCK_SH,fn()=>$this->disk->verify()));
+    }
+    public function dataDirectory(): string
+    {
+        if (!$this->disk->hasLayout()) { $this->transaction(static fn(&$state)=>null); }
+        return $this->disk->directory();
+    }
+    public function backup(string $target): void
+    {
+        if (!$this->disk->hasLayout()) { throw new Problem(503,'Bitte den Datenbestand zuerst migrieren. Eine Altsicherung besteht aus der ursprünglichen state.php.'); }
+        $this->locked(LOCK_SH,fn()=>$this->dataLocked(LOCK_SH,fn()=>$this->disk->backup($target)));
+    }
+    public function cleanup(): array
+    {
+        if (!$this->disk->hasLayout()) { throw new Problem(503,'Bitte den Datenbestand zuerst migrieren und prüfen.'); }
+        return $this->locked(LOCK_EX,fn()=>$this->dataLocked(LOCK_EX,fn()=>$this->disk->cleanup()));
+    }
+    public static function checkMigrationMemory(int $bytes): void
+    {
+        $limit=ini_parse_quantity(ini_get('memory_limit'));
+        if ($limit>0 && memory_get_usage(true)+$bytes*4+16*1024*1024>$limit) { throw new Problem(503,'Für die Migration reicht der PHP-Arbeitsspeicher nicht aus. Bitte den Migrationslauf per CLI mit höherem memory_limit starten. Der bisherige Datenbestand bleibt unverändert.'); }
     }
     public static function decode(string $data): array
     {
@@ -55,7 +99,7 @@ final class Store
     }
     public static function validate(array $s): void
     {
-        if (!in_array($s['schemaVersion'] ?? null, [1,2,self::VERSION], true)) { throw new Problem(503, 'Unbekannte Datenversion. Bitte passende MyWish-Version verwenden; Daten nicht überschreiben.'); }
+        if (!in_array($s['schemaVersion'] ?? null, [1,2,3,self::VERSION], true)) { throw new Problem(503, 'Unbekannte Datenversion. Bitte passende MyWish-Version verwenden; Daten nicht überschreiben.'); }
         foreach (['users','lists','wishes','reservations','attempts'] as $key) {
             if (!isset($s[$key]) || !is_array($s[$key]) || !array_is_list($s[$key])) { throw new Problem(503, 'Ungültige Datenstruktur.'); }
         }
@@ -83,15 +127,11 @@ final class Store
                 if (array_key_exists('image',$row) && $row['image']!==null) {
                     $image=$row['image'];
                     if (!is_array($image)) { throw new Problem(503, 'Ungültige Bilddaten.'); }
-                    $hasSource=$s['schemaVersion']===self::VERSION && array_key_exists('sourceUrl',$image);
-                    self::keys($image,$hasSource ? ['mime','data','sourceUrl'] : ['mime','data']);
-                    if ($hasSource) {
-                        self::string($image['sourceUrl'],2048,true); $source=parse_url($image['sourceUrl']);
-                        if (!filter_var($image['sourceUrl'],FILTER_VALIDATE_URL) || !in_array(strtolower($source['scheme'] ?? ''),['http','https'],true) || isset($source['user']) || isset($source['pass'])) { throw new Problem(503,'Ungültige Bildquelle.'); }
+                    if ($s['schemaVersion']===4) { self::validateImageReference($image); }
+                    else {
+                        if ($s['schemaVersion']<3 && array_key_exists('sourceUrl',$image)) { throw new Problem(503,'Ungültige Bildquelle im alten Schema.'); }
+                        self::validateInlineImage($image);
                     }
-                    if (!is_string($image['data']) || strlen($image['data'])>2800000 || !in_array($image['mime'],['image/jpeg','image/png','image/webp'],true)) { throw new Problem(503, 'Ungültige Bilddaten.'); }
-                    $bytes=base64_decode($image['data'],true); $info=$bytes!==false ? @getimagesizefromstring($bytes) : false;
-                    if (!$info || $info['mime']!==$image['mime'] || strlen($bytes)>2097152 || $info[0]>6000 || $info[1]>6000 || $info[0]*$info[1]>16000000) { throw new Problem(503, 'Ungültige Bilddaten.'); }
                 }
             }
         }
@@ -147,20 +187,35 @@ final class Store
             $pairs[$pair] = true;
         }
     }
-    private function write(string $file,string $data): void
+    public static function validImageFile(mixed $file): bool { return is_string($file) && (bool)preg_match('/^[a-f0-9]{64}\.(?:jpg|png|webp)$/D',$file); }
+    private static function imageSource(array $image): void
     {
-        $temp=$this->directory.'/tmp-'.bin2hex(random_bytes(12)).'.php';
+        if (!array_key_exists('sourceUrl',$image)) { return; }
+        self::string($image['sourceUrl'],2048,true);$source=parse_url($image['sourceUrl']);
+        if (!filter_var($image['sourceUrl'],FILTER_VALIDATE_URL) || !in_array(strtolower($source['scheme'] ?? ''),['http','https'],true) || isset($source['user']) || isset($source['pass'])) { throw new Problem(503,'Ungültige Bildquelle.'); }
+    }
+    public static function validateInlineImage(array $image): void
+    {
+        self::keys($image,array_merge(['mime','data'],array_key_exists('sourceUrl',$image) ? ['sourceUrl'] : []));self::imageSource($image);
+        if (!is_string($image['data']) || strlen($image['data'])>2800000 || !in_array($image['mime'],['image/jpeg','image/png','image/webp'],true)) { throw new Problem(503,'Ungültige Bilddaten.'); }
+        $bytes=base64_decode($image['data'],true);$info=$bytes!==false ? @getimagesizefromstring($bytes) : false;
+        if (!$info || $info['mime']!==$image['mime'] || $info[0]<1 || $info[1]<1 || strlen($bytes)>2097152 || $info[0]>6000 || $info[1]>6000 || $info[0]*$info[1]>16000000) { throw new Problem(503,'Ungültige Bilddaten.'); }
+    }
+    public static function validateImageReference(array $image): void
+    {
+        self::keys($image,array_merge(['file','mime','bytes','width','height'],array_key_exists('sourceUrl',$image) ? ['sourceUrl'] : []));self::imageSource($image);
+        if (!is_string($image['mime'])) { throw new Problem(503,'Ungültiger Bildtyp.'); }
+        $extension=['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp'][$image['mime']] ?? null;
+        if (!self::validImageFile($image['file']) || $extension===null || !str_ends_with($image['file'],'.'.$extension) || !is_int($image['bytes']) || $image['bytes']<1 || $image['bytes']>2097152 || !is_int($image['width']) || !is_int($image['height']) || $image['width']<1 || $image['height']<1 || $image['width']>6000 || $image['height']>6000 || $image['width']*$image['height']>16000000) { throw new Problem(503,'Ungültiger Bilddateiverweis.'); }
+    }
+    public static function writeFile(string $file,string $data): void
+    {
+        $temp=dirname($file).'/tmp-'.bin2hex(random_bytes(12)).'.php';
         try {
-            $out=@fopen($temp,'xb');
-            if (!$out) { throw new \RuntimeException('write'); }
+            $out=@fopen($temp,'xb');if (!$out) { throw new \RuntimeException('write'); }
             @chmod($temp,0600);
             try {
-                $offset=0;
-                while ($offset<strlen($data)) {
-                    $written=fwrite($out,substr($data,$offset));
-                    if (!$written) { throw new \RuntimeException('write'); }
-                    $offset+=$written;
-                }
+                $offset=0;while ($offset<strlen($data)) { $written=fwrite($out,substr($data,$offset));if (!$written) { throw new \RuntimeException('write'); }$offset+=$written; }
                 if (!fflush($out) || (function_exists('fsync') && !fsync($out))) { throw new \RuntimeException('flush'); }
             } finally { fclose($out); }
             if (!@rename($temp,$file)) { throw new \RuntimeException('rename'); }

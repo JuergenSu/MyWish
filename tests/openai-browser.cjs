@@ -13,6 +13,8 @@ const axe = fs.readFileSync(
 );
 (async () => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "mywish-openai-browser-"));
+  const web = path.join(temp, "public");
+  fs.mkdirSync(web);
   const port = await new Promise((resolve) => {
     const s = net.createServer();
     s.listen(0, "127.0.0.1", () => {
@@ -20,12 +22,12 @@ const axe = fs.readFileSync(
       s.close(() => resolve(p));
     });
   });
-  for (const dir of [temp, path.join(temp, "mywish")]) {
+  for (const dir of [web, path.join(web, "mywish")]) {
     fs.cpSync(root, dir, {
       recursive: true,
       filter: (source) =>
         !/\/(\.git|node_modules|\.artifacts|__pycache__)(\/|$)/.test(source) &&
-        !["config.php", "state.php", "lock.php"].includes(
+        !["config.php", "state.php", "layout.php", "lock.php"].includes(
           path.basename(source),
         ),
     });
@@ -43,7 +45,7 @@ const axe = fs.readFileSync(
       "-S",
       `127.0.0.1:${port}`,
       "-t",
-      temp,
+      web,
     ],
     { stdio: "ignore", detached: true },
   );

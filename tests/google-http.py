@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Complete local OIDC callbacks with a fake transport; no Google credentials or network."""
 import base64, http.cookiejar, json, os, pathlib, shutil, signal, socket, subprocess, tempfile, time, urllib.request, urllib.error, urllib.parse
+from storage_helpers import disk_state
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 PHP=os.environ.get('PHP_BIN','php')
 AUD='fixture.apps.googleusercontent.com'
@@ -51,7 +52,7 @@ class Client:
 with tempfile.TemporaryDirectory(prefix='mywish-google-http-') as temp:
  temp=pathlib.Path(temp);doc=temp/'public';doc.mkdir()
  for dest in [doc,doc/'mywish']:
-  shutil.copytree(ROOT,dest,dirs_exist_ok=True,ignore=shutil.ignore_patterns('.git','config.php','state.php','lock.php','backup-schema-*.php','google-jwks*.php','node_modules','.artifacts','__pycache__'))
+  shutil.copytree(ROOT,dest,dirs_exist_ok=True,ignore=shutil.ignore_patterns('.git','config.php','state.php','layout.php','lock.php','backup-schema-*.php','google-jwks*.php','node_modules','.artifacts','__pycache__'))
  key_script="""$k=openssl_pkey_new(['private_key_bits'=>2048,'private_key_type'=>OPENSSL_KEYTYPE_RSA]);openssl_pkey_export($k,$private);$d=openssl_pkey_get_details($k);$enc=fn($s)=>rtrim(strtr(base64_encode($s),'+/','-_'),'=');echo json_encode(['private'=>$private,'jwks'=>['keys'=>[['kty'=>'RSA','kid'=>'test-key','alg'=>'RS256','use'=>'sig','n'=>$enc($d['rsa']['n']),'e'=>$enc($d['rsa']['e'])]]]]);"""
  keys=temp/'keys.json';keys.write_bytes(subprocess.check_output([PHP,'-r',key_script]))
  sock=socket.socket();sock.bind(('127.0.0.1',0));port=sock.getsockname()[1];sock.close()
@@ -88,7 +89,7 @@ with tempfile.TemporaryDirectory(prefix='mywish-google-http-') as temp:
    pending=guest.start();guest.callback(pending,'bad','bad@example.com',{'_token_error':True});guest.api('state',status=401)
    # Verified email alone must not merge into an existing local account.
    pending=guest.start();guest.callback(pending,'google-local','existing@example.com');guest.api('state',status=401)
-   check(len(json.loads((doc/folder.lstrip('/')/'storage/state.php').read_text().split('\n',1)[1])['users'])==1,'No implicit email-based linking')
+   check(len(disk_state(doc/folder.lstrip('/')/'storage')['users'])==1,'No implicit email-based linking')
    owner.start('link',password='wrong',status=403)
    pending=owner.start('link',password='Localpass!12');owner.callback(pending,'google-local','existing@example.com')
    check(owner.api('state')['user']['id']==local_id,'Explicit link preserves original account')

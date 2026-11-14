@@ -88,9 +88,9 @@ def scenario(base,dest):
  check(owner.request('api/index.php?action=searchImage')[0]==405,'Image search requires POST')
  print('PASS OpenAI image search HTTP:',base)
 with tempfile.TemporaryDirectory(prefix='mywish-openai-http-') as temp:
- doc=pathlib.Path(temp)
+ doc=pathlib.Path(temp)/'public';doc.mkdir()
  for dest in [doc,doc/'mywish']:
-  shutil.copytree(ROOT,dest,dirs_exist_ok=True,ignore=shutil.ignore_patterns('.git','config.php','state.php','lock.php','backup-schema-*.php','openai-search*.php','node_modules','.artifacts','__pycache__'));config(dest)
+  shutil.copytree(ROOT,dest,dirs_exist_ok=True,ignore=shutil.ignore_patterns('.git','config.php','state.php','layout.php','lock.php','backup-schema-*.php','openai-search*.php','node_modules','.artifacts','__pycache__'));config(dest)
  sock=socket.socket();sock.bind(('127.0.0.1',0));port=sock.getsockname()[1];sock.close()
  log=open(doc/'server.log','w')
  process=subprocess.Popen([PHP,'-d','opcache.enable=0','-d','opcache.enable_cli=0','-d','auto_prepend_file='+str(ROOT/'tests/fixtures/openai-transport.php'),'-S',f'127.0.0.1:{port}','-t',str(doc)],stdout=log,stderr=log,start_new_session=True)

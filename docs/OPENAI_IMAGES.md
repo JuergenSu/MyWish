@@ -37,9 +37,9 @@ Zähler und Suchadressen liegen geschützt unter `storage/openai-search.php`, de
 
 ## Update und Backup
 
-Diese Version verwendet **Schema 3**, um den Quellenlink im Bilddatensatz zu speichern. Gültige Schema-1- und Schema-2-Daten werden unter Lock zuerst bytegenau als geschützte `backup-schema-1-…php` beziehungsweise `backup-schema-2-…php` gesichert, dann umgestellt. Nutzer, Google-Verknüpfungen, Passworthashes, Listen, Wünsche, Bilder und Reservierungen bleiben erhalten. Scheitert die Sicherung, wird nicht migriert.
+Bildquellen wurden mit Schema 3 eingeführt. Aktuell verwendet MyWish **Schema 4** mit privaten JSON-Sammlungen und separaten Bilddateien. Gültige Schemata 1–3 werden unter Lock nach bytegenauem Backup migriert; Quellen, Konten, Google-Verknüpfungen, Wünsche und Reservierungen bleiben erhalten. [Konzept und Migrationslauf](STORAGE.md).
 
-Vor dem Update ein Betreiber-Backup anlegen. `storage/` und `config.php` erhalten; den neuen OpenAI-Block in die bestehende Konfiguration übernehmen. Gespeicherte Bildquellen sind in `state.php` enthalten und werden mitgesichert. Ein Rollback auf älteren Code erfordert dessen passenden Datenstand aus dem Backup. Der Suchcache muss nicht mitgesichert werden.
+Bei Updates `storage/`, `config.php` und den privaten Datenordner erhalten. Der OpenAI-Block bleibt in `config.php`; Bildquellen stehen in den JSON-Bildverweisen. Backups benötigen JSON-Dateien und Bilder zusammen. Der Suchcache muss nicht mitgesichert werden. Ein Rollback auf älteren Code erfordert dessen passenden Datenstand aus dem Backup.
 
 ## Prüfungen
 

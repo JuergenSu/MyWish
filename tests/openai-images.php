@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__.'/fixtures/openai-transport.php';
+require __DIR__.'/fixtures/storage-helpers.php';
 foreach (['Store','App','Metadata','OpenAiImages'] as $class) { require dirname(__DIR__).'/src/'.$class.'.php'; }
 use MyWish\{App,Store,Problem,OpenAiImages};
 $checks=0;
@@ -114,8 +115,9 @@ try {
     $list=$app->act('saveList',['name'=>'Wishes','occasion'=>'Anderes'])['id'];
     $legacy=$store->transaction(fn(&$s)=>$s); $legacy['schemaVersion']=2;
     $google=$legacy['users'][0];$google['id']=str_repeat('b',32);$google['username']='google';$google['passwordHash']=null;$google['googleSub']='test-sub';$google['googleEmail']='test@example.com';$legacy['users'][]=$google;
-    $bytes=Store::GUARD.json_encode($legacy);file_put_contents($dir.'/state.php',$bytes);
-    $migrated=$store->transaction(fn(&$s)=>$s);$backups=glob($dir.'/backup-schema-2-*.php');
+    $migrationDir=$dir.'/legacy';mkdir($migrationDir,0700);$store=new Store($migrationDir);$app=new App($store);
+    $bytes=Store::GUARD.json_encode($legacy);file_put_contents($migrationDir.'/state.php',$bytes);
+    $migrated=$store->transaction(fn(&$s)=>$s);$backups=glob($migrationDir.'/backup-schema-2-*.php');
     check($migrated['schemaVersion']===Store::VERSION && $migrated['users']===$legacy['users'] && $migrated['lists']===$legacy['lists'],'Migration preserves local and Google-only accounts and lists');
     check(count($backups)===1 && file_get_contents($backups[0])===$bytes,'Schema 2 backed up byte-for-byte before migration');
     $search->preview('Product','',$_SESSION['userId']);
@@ -128,4 +130,4 @@ try {
     $app->act('saveWish',['id'=>$wish,'listId'=>$list,'title'=>'Removed','removeImage'=>'yes']);
     check(!isset($app->snapshot()['wishes'][0]['imageSourceUrl']),'Removing image removes attribution');
     echo "OK: $checks OpenAI image search/cache/migration checks\n";
-} finally { foreach(glob($dir.'/*') as $file) { unlink($file); } rmdir($dir); $_SESSION=[]; session_destroy(); }
+} finally { removeTestTree($dir); $_SESSION=[]; session_destroy(); }
