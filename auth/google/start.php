@@ -12,7 +12,7 @@ try {
         if (isset($_SESSION['userId'])) { throw new MyWish\Problem(409,'Du bist bereits angemeldet. Google kannst du unter Mein Konto verknüpfen.'); }
         if (!$app->settings()) { throw new MyWish\Problem(409,'Bitte MyWish zuerst einrichten.'); }
     } else {
-        $user=$app->store->transaction(fn(&$s)=>MyWish\App::user($s));
+        $user=$app->store->read(fn(&$s)=>MyWish\App::user($s));
         if ($purpose==='link' && !MyWish\App::verifyCurrent($in,$user)) { throw new MyWish\Problem(403,'Zum Verknüpfen bitte dein aktuelles Passwort bestätigen.'); }
         if ($purpose==='reauthenticate' && $user['googleSub']===null) { throw new MyWish\Problem(403,'Dieses Konto ist nicht mit Google verknüpft.'); }
     }

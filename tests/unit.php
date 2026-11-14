@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__).'/src/Store.php';
+require __DIR__.'/fixtures/storage-helpers.php';
 require dirname(__DIR__).'/src/App.php';
 require dirname(__DIR__).'/src/Metadata.php';
 use MyWish\App;
@@ -69,16 +70,16 @@ try {
     $meta=Metadata::parse('<html><head><title>Fallback</title><meta property="og:title" content="Schöner Wunsch"><meta property="og:image" content="/bild.png"><script type="application/ld+json">{"@type":"Product","offers":{"price":"39.99","priceCurrency":"EUR"}}</script></head></html>','https://example.com/path/item');
     if (class_exists('DOMDocument')) { check($meta['title']==='Schöner Wunsch' && $meta['price']==='39.99' && $meta['imageUrl']==='https://example.com/bild.png','Metadata fixture'); }
     $store=new Store($dir); $store->transaction(function(&$s) { $s['attempts']=[['ip'=>'initial','at'=>time(),'kind'=>'login']]; });
-    $before=file_get_contents($dir.'/state.php');
+    $manifest=$store->dataDirectory().'/manifest.json';$before=file_get_contents($manifest);
     try { $store->transaction(function(&$s) { $s['attempts'][]=['ip'=>'test','at'=>time(),'kind'=>'login']; throw new RuntimeException('simulated abort'); }); } catch (RuntimeException) {}
-    check(file_get_contents($dir.'/state.php')===$before,'Aborted writes preserve bytes');
+    check(file_get_contents($manifest)===$before,'Aborted writes preserve bytes');
     if (function_exists('pcntl_fork')) {
         $children=[];
         for ($i=0;$i<20;$i++) { $pid=pcntl_fork(); if ($pid===0) { (new Store($dir))->transaction(function(&$s) { $n=count($s['attempts']); usleep(1000); $s['attempts'][]=['ip'=>(string)$n,'at'=>time(),'kind'=>'login']; }); exit(0); } $children[]=$pid; }
         foreach ($children as $pid) { pcntl_waitpid($pid,$status); check(pcntl_wexitstatus($status)===0,'Worker succeeded'); }
         check($store->transaction(fn(&$s)=>count($s['attempts']))===21,'20 concurrent writes: no loss');
     }
-    file_put_contents($dir.'/state.php',Store::GUARD.'{"broken":'); rejects(fn()=>$store->transaction(fn(&$s)=>$s),503);
-    file_put_contents($dir.'/state.php',Store::GUARD.json_encode(array_replace(Store::empty(),['schemaVersion'=>Store::VERSION+1]))); rejects(fn()=>$store->transaction(fn(&$s)=>$s),503);
+    file_put_contents($manifest,'{"broken":'); rejects(fn()=>$store->transaction(fn(&$s)=>$s),503);
+    file_put_contents($manifest,json_encode(array_replace(json_decode($before,true),['schemaVersion'=>Store::VERSION+1]))); rejects(fn()=>$store->transaction(fn(&$s)=>$s),503);
     echo "OK: $checks unit/storage/security checks\n";
-} finally { foreach (glob($dir.'/*') as $file) { unlink($file); } rmdir($dir); }
+} finally { removeTestTree($dir); }

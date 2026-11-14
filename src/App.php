@@ -80,7 +80,7 @@ final class App
     }
     public function snapshot(): array
     {
-        return $this->store->transaction(function (&$s) {
+        return $this->store->read(function (&$s) {
             if (!$s['settings']) { return ['installed'=>false]; }
             $u = self::user($s);
             $lists = [];
@@ -111,7 +111,7 @@ final class App
     public function sharedList(string $id): array
     {
         if (!preg_match('/^[a-f0-9]{32}$/D',$id)) { throw new Problem(404,'Die geteilte Liste wurde nicht gefunden.'); }
-        return $this->store->transaction(function(&$s) use ($id) {
+        return $this->store->read(function(&$s) use ($id) {
             $list=self::find($s['lists'],$id);
             $owner=self::find($s['users'],$list['ownerUserId']);
             $public=array_intersect_key($list,array_flip(['id','name','description','occasion','eventDate','cover']));
@@ -128,7 +128,7 @@ final class App
             return ['list'=>$public,'wishes'=>$wishes];
         });
     }
-    public function settings(): ?array { return $this->store->transaction(fn(&$s)=>$s['settings']===null ? null : array_replace($s['settings'], $this->registrationOverride!==null ? ['registration'=>$this->registrationOverride] : [])); }
+    public function settings(): ?array { $settings=$this->store->settings();return $settings===null ? null : array_replace($settings,$this->registrationOverride!==null ? ['registration'=>$this->registrationOverride] : []); }
     public function act(string $action, array $in): array
     {
         $result = $this->store->transaction(function (&$s) use ($action, $in) {
@@ -230,6 +230,7 @@ final class App
             }
         });
         if ($result instanceof Problem) { throw $result; }
+        if ($action==='saveWish') { unset($_SESSION['importImage']); }
         if (isset($result['login'])) {
             self::establishSession($result['login']); unset($result['login']);
         }

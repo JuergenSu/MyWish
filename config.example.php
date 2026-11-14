@@ -3,6 +3,12 @@
 // Empfohlen: beschreibbarer Ordner außerhalb des öffentlich erreichbaren Webroots.
 return [
     'storage' => __DIR__.'/storage',
+    // Schema 4: echte JSON-/Bilddateien müssen außerhalb des Webroots liegen.
+    // null: automatisch privater Ordner neben dem Webroot (oder unter storage,
+    // wenn storage bereits privat liegt). Alternativ absoluten privaten Pfad setzen.
+    // Der übergeordnete Ordner muss existieren und für PHP beschreibbar sein.
+    'data' => null, // z.B. '/home/dein-konto/private/mywish-data'
+
     // null: Setup-Einstellung. Betreiber kann hier auf open oder closed umschalten.
     'registration' => null,
     // Optional: Google OAuth-Webclient. Leere Werte deaktivieren Google-Login.

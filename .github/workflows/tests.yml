@@ -17,6 +17,9 @@ jobs:
           coverage: none
       - run: find . -name '*.php' -not -path './storage/state.php' -print0 | xargs -0 -n1 php -l
       - run: php tests/unit.php
+      - run: php tests/storage.php
+      - if: matrix.php == '8.4'
+        run: php -d memory_limit=512M tests/storage-performance.php
       - run: php tests/sessions.php
       - run: php tests/import.php
       - run: php tests/google.php
@@ -25,7 +28,8 @@ jobs:
       - run: python3 tests/google-http.py
       - run: python3 tests/openai-http.py
   browser:
-    runs-on: ubuntu-latest
+    # Playwright 1.58 uses Ubuntu 24.04 browser/dependency builds.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2

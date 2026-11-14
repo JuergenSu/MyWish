@@ -13,10 +13,10 @@ Ein normales Konto ist entweder Eigentümer oder Schenkender im Kontext einer Li
 | Brute Force | Zehn erfolglose Logins je gehashter IP in 15 Minuten, 30 Registrierungen separat; Ablaufbereinigung bei Login/Registrierung. Keine Passwort-/Tokenlogs. NAT kann mehrere Nutzer betreffen. |
 | XSS | Zentrales HTML-Escaping, URL-Scheme-Liste, kein innerHTML, lokale Skripte/CSS, CSP ohne unsafe-inline, kein SVG-Upload. Test mit aktiven HTML-Strings. |
 | SSRF / DNS Rebinding | Nur HTTP(S), keine Credentials/Sonderports. DNS-A-Ziele auf öffentliche IPv4 prüfen, konkret per CURLOPT_RESOLVE pinnen, Proxy deaktiviert, jeden Redirect erneut prüfen (max. 3). Kein Wechsel des aufgelösten Ziels beim Verbinden. Keine IPv6-/Übergangstunnel. Zeitlimit, Größenlimit und TLS-Prüfung. |
-| Fremde Bilder / Upload | Signatur, Dimensionen und vollständige GD-Dekodierung prüfen; auf maximal 1200 Pixel verkleinern und neu kodieren, kein Vertrauen in Browser-MIME/Dateiname. Bytes in geschütztem State, feste MIME-Auslieferung, nosniff. Keine frei wählbaren Pfade, nur echte PHP-Uploads. Bilder nie als Code eingebunden. |
-| Rohdaten-Download | `.php`-Dateien mit ausführbarem 404/exit vor JSON; separate .htaccess als Zusatz. Tempdateien ebenfalls `.php` mit Guard. Storage außerhalb Webroot empfohlen. Direktzugriff getestet ohne Rewrite/.htaccess. |
-| Fehler und Datenverlust | JSON-/Schema-/Referenzprüfung, unbekannte Version sperrt, temporär schreiben + flush/fsync + rename unter separatem Lock. Abbruch vor Commit erhält alte Bytes. Einheitliche Fehler ohne absolute Pfade/Stacktraces. |
-| Backup / Restore | Nur vertrauenswürdiger Betreiber per SFTP/Dateimanager. Vor Wiederherstellung neue Instanz prüfen und aktuellen Stand sichern; kein öffentlicher Restore-Endpunkt. |
+| Fremde Bilder / Upload | Signatur, Dimensionen und vollständige GD-Dekodierung prüfen; auf maximal 1200 Pixel verkleinern und neu kodieren, kein Vertrauen in Browser-MIME/Dateiname. Bilddateien im privaten Datenordner, Prüfsummen und feste MIME-Auslieferung, nosniff. Keine frei wählbaren Pfade, nur echte PHP-Uploads. Bilder nie als Code eingebunden. |
+| Rohdaten-Download | Schema-4-JSON und Bilder ausschließlich außerhalb des Webroots; Pfade einschließlich Symlinks prüfen. Runtime-Verweise, Sitzungen und Altsicherungen tragen weiterhin den PHP-Abbruchschutz. Direkter HTTP-Zugriff ohne Rewrite/.htaccess geprüft. |
+| Fehler und Datenverlust | JSON-/Schema-/Referenz-/Prüfsummenprüfung, unbekannte Version sperrt. Unveränderliche JSON-/Bilddateien, temporär schreiben + flush/fsync, atomarer Manifestwechsel unter gemeinsamem Datenlock. Abbruch vor Commit erhält alte Bytes. Einheitliche Fehler ohne absolute Pfade/Stacktraces. |
+| Backup / Restore | Nur vertrauenswürdiger Betreiber per CLI oder bei gestoppten Schreibzugriffen per SFTP/Dateimanager; JSON-Dateien und Bilder gemeinsam sichern. Vor Wiederherstellung neue Instanz prüfen und aktuellen Stand sichern; kein öffentlicher Restore-Endpunkt. |
 
 ## Grenzen
 
@@ -45,3 +45,10 @@ Das Cookie und die Sitzung gelten 14 Tage seit der letzten Nutzung. Der Server e
 Nach exakt 14 Tagen ohne Nutzung liefern Dateien keine Anmeldedaten mehr, auch wenn die automatische Bereinigung noch nicht gelaufen ist. Logout und ID-Wechsel leeren die alte Datei unter demselben Lock; wartende Anfragen können sie nicht mit alten Zugangsdaten wiederherstellen. Passwort-/Provider-Änderungen und Kontolöschung werden weiter anhand der Sitzungsversion geprüft. Google-OAuth-State (zehn Minuten) und frische Kontobestätigung (fünf Minuten) behalten ihre bisherigen Fristen.
 
 Bei diesem Update müssen Nutzer sich einmal neu anmelden; alte Sitzungen im PHP-Standardspeicher werden nicht migriert. Bei Umzug/Restore den Sitzungsordner nicht übernehmen. Wer Cookies oder den Sitzungsordner löscht, muss sich erneut anmelden.
+
+
+## Schema 4: JSON und Bilder
+
+Dauerhafte Bilder werden nicht mehr als Base64 in JSON gespeichert. JSON-Sammlungen und Bilddateien liegen außerhalb des DocumentRoot; eine bloße `.htaccess`-Sperre wird für rohe Dateien nicht als ausreichender Schutz angenommen. Ein geschützter Verweis im bisherigen Storage zeigt auf den privaten Bestand. APIs und öffentliche Teilen-Ansichten geben keine privaten Pfade oder internen Bilddateinamen aus.
+
+Die Migration prüft alte Schemata 1–3, sichert die ursprünglichen Bytes und verifiziert alle neuen JSON-/Bildreferenzen vor dem Umschalten. Die alte Datei erhält einen Schema-4-Verweis, den alter Code ablehnt. Sitzungen, Konten und Reservierungen bleiben erhalten. Beschädigte Daten werden nicht still durch vorherige Generationen oder leere Dateien ersetzt. Für konsistente Verzeichnissicherungen sperrt das CLI-Werkzeug Schreibvorgänge; laufende ungefilterte SFTP-Kopien sind nicht konsistent. [Details](STORAGE.md).

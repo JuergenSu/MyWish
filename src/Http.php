@@ -22,13 +22,13 @@ function input(): array
 }
 function mutate(App $app,string $action,array $in): array
 {
-    if (!in_array($action,['setup','login','register'],true)) { $app->store->transaction(fn(&$s)=>App::user($s)); }
+    if (!in_array($action,['setup','login','register'],true)) { $app->store->read(fn(&$s)=>App::user($s)); }
     $csrf=$_SERVER['HTTP_X_CSRF_TOKEN'] ?? ($in['csrf'] ?? '');
     if (!is_string($csrf) || !hash_equals($_SESSION['csrf'],$csrf)) { throw new Problem(403,'Das Formular ist abgelaufen. Bitte die Seite neu laden und erneut versuchen.'); }
     if ($action==='searchImage') {
         global $imageSearch;
         $listId=App::text($in,'listId',32,true);
-        $userId=$app->store->transaction(function(&$s) use ($listId): string {
+        $userId=$app->store->read(function(&$s) use ($listId): string {
             $user=App::user($s); $list=App::find($s['lists'],$listId);
             if ($list['ownerUserId']!==$user['id']) { throw new Problem(403,'Nur der Eigentümer darf Bilder für diese Liste suchen.'); }
             return $user['id'];

@@ -12,12 +12,16 @@ const axePath = process.env.AXE_PATH || require.resolve("axe-core/axe.min.js");
 fs.mkdirSync(artifacts, { recursive: true });
 (async () => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "mywish-browser-"));
-  const doc = path.join(temp, "mywish");
+  const web = path.join(temp, "public");
+  fs.mkdirSync(web);
+  const doc = path.join(web, "mywish");
   fs.cpSync(root, doc, {
     recursive: true,
     filter: (source) =>
       !/\/(\.git|node_modules|\.artifacts|__pycache__)(\/|$)/.test(source) &&
-      !["state.php", "lock.php", "config.php"].includes(path.basename(source)),
+      !["state.php", "layout.php", "lock.php", "config.php"].includes(
+        path.basename(source),
+      ),
   });
   const port = await new Promise((resolve) => {
     const s = net.createServer();
@@ -37,7 +41,7 @@ fs.mkdirSync(artifacts, { recursive: true });
       "-S",
       `127.0.0.1:${port}`,
       "-t",
-      temp,
+      web,
     ],
     { stdio: ["ignore", log, log], detached: true },
   );

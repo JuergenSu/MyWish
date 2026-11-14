@@ -38,7 +38,7 @@ try {
 $config = is_file(dirname(__DIR__).'/config.php') ? require dirname(__DIR__).'/config.php' : [];
 if (!is_array($config)) { throw new Problem(503,'config.php muss ein Konfigurationsarray zurückgeben.'); }
 $storageDirectory=$config['storage'] ?? dirname(__DIR__).'/storage';
-$store=new Store($storageDirectory);
+$store=new Store($storageDirectory,$config['data'] ?? null);
 $sessions=new MyWish\SessionStore($storageDirectory.'/sessions');
 ini_set('session.use_strict_mode', '1');
 ini_set('session.use_only_cookies', '1');
@@ -53,6 +53,7 @@ if (!@session_start()) { bootFailure('Die PHP-Session kann nicht gestartet werde
 if (isset($_SESSION['seen']) && time() - $_SESSION['seen'] >= MyWish\SessionStore::LIFETIME) { $_SESSION = []; session_regenerate_id(true); }
 $_SESSION['seen'] = time();
 $_SESSION['csrf'] ??= bin2hex(random_bytes(32));
+if (isset($_SESSION['importImage']['at']) && time()-$_SESSION['importImage']['at']>=1800) { unset($_SESSION['importImage']); }
 // Die 14 Tage gelten ab der letzten Nutzung, auch nach einem Browser-Neustart.
 setcookie(session_name(),session_id(),['expires'=>time()+MyWish\SessionStore::LIFETIME]+$cookie);
 $app = new App($store, $config['registration'] ?? null);
