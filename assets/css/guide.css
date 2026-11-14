@@ -1,0 +1,51 @@
+.guide {
+  max-width: 860px;
+  line-height: 1.75;
+}
+.guide .form-heading {
+  text-align: left;
+}
+.guide-section {
+  padding: clamp(20px, 4vw, 36px);
+  margin-block: 24px;
+}
+.guide-section h2 {
+  font-size: 1.35rem;
+  line-height: 1.4;
+  scroll-margin-top: 24px;
+}
+.guide-section h3 {
+  font-size: 1.05rem;
+  margin-top: 28px;
+}
+.guide p {
+  margin-block: 16px;
+}
+.guide ul,
+.guide ol {
+  padding-left: 24px;
+}
+.guide li + li {
+  margin-top: 12px;
+}
+.guide-contents a {
+  display: inline-block;
+  padding-block: 4px;
+}
+@media print {
+  .header,
+  .footer,
+  .skip-link,
+  .guide > .button {
+    display: none;
+  }
+  .guide {
+    max-width: none;
+    padding: 0;
+  }
+  .guide-section {
+    border: 0;
+    box-shadow: none;
+    padding: 0;
+  }
+}

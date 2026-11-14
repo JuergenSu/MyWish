@@ -105,7 +105,7 @@ fs.mkdirSync(artifacts, { recursive: true });
   try {
     for (let i = 0; i < 100; i++) {
       try {
-        await fetch(base);
+        await fetch(new URL("anleitung.php", base));
         break;
       } catch {
         await new Promise((r) => setTimeout(r, 50));
@@ -128,7 +128,29 @@ fs.mkdirSync(artifacts, { recursive: true });
       if (!r.url().startsWith(`http://127.0.0.1:${port}`))
         external.push(r.url());
     });
-    await page.goto(base);
+    const guideUrl = new URL("anleitung.php", base).href;
+    const guideResponse = await page.goto(guideUrl);
+    assert.equal(guideResponse.status(), 200);
+    assert.equal(guideResponse.headers()["set-cookie"], undefined);
+    assert.equal(await page.locator("form, input").count(), 0);
+    assert.equal(fs.existsSync(path.join(doc, "storage/layout.php")), false);
+    for (const link of await page.locator(".guide-contents a").all()) {
+      const target = await link.getAttribute("href");
+      assert.equal(await page.locator(target).count(), 1);
+    }
+    await audit(page, "public-guide");
+    await page
+      .getByRole("link", { name: "Ein Geschenk reservieren", exact: true })
+      .click();
+    assert.equal(new URL(page.url()).hash, "#schenken");
+    await page
+      .getByRole("link", { name: "Jetzt MyWish öffnen", exact: true })
+      .click();
+    assert.equal(page.url(), base);
+    assert.equal(
+      await page.locator('footer a[href$="/anleitung.php"]').count(),
+      1,
+    );
     await audit(page, "setup");
     await page.getByLabel("Dein Anzeigename", { exact: true }).fill("Antonia");
     await page

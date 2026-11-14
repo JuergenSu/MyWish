@@ -174,5 +174,5 @@ if (in_array($page,['setup','login','register'],true)):
 <?php elseif ($page==='error'): ?><?= emptyState('MyWish ist gerade nicht verfügbar','Bitte die angezeigte Meldung prüfen und später erneut versuchen.') ?>
 <?php else: throw new Problem(404,'Diese Seite wurde nicht gefunden.'); endif;
 } catch (Throwable $ex) { [$status,$message]=safeError($ex); http_response_code($status); ?><div class="notice error" role="alert"><?= e($message) ?></div><a class="button secondary" href="<?= e(url()) ?>">Zur Übersicht</a><?php } ?>
-</main><footer class="footer shell"><a class="brand small" href="<?= e(url()) ?>"><?= icon('gift') ?><?= e($siteName) ?></a><span>Mit Wünschen fängt Freude an.</span><span>Listen sind auch über ihren Teilen-Link sichtbar. <a href="<?= e(url('page=account')) ?>">Mein Konto</a></span></footer>
+</main><footer class="footer shell"><a class="brand small" href="<?= e(url()) ?>"><?= icon('gift') ?><?= e($siteName) ?></a><span>Mit Wünschen fängt Freude an.</span><span><a href="<?= e($base) ?>/anleitung.php">Anleitung</a> · Listen sind auch über ihren Teilen-Link sichtbar. <a href="<?= e(url('page=account')) ?>">Mein Konto</a></span></footer>
 </body></html>
