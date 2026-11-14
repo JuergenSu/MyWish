@@ -14,6 +14,10 @@ Eine kleine, selbst gehostete Wunschwelt für Freunde und Familie. PHP 8.2+, HTM
 - Meine Reservierungen, Suche über Listen/Anzeigenamen, mobile Oberfläche und Formulare ohne JavaScript.
 - Installationsbanner auf dem Handy: Android-Installationsdialog oder iPhone-Anleitung für den Home-Bildschirm; App-Manifest und lokale Icons, auch im Unterordner.
 
+## Anleitung für Nutzer
+
+Die öffentliche [Anleitung](anleitung.php) erklärt Anmeldung, Wunschlisten, Bilder, Teilen und Reservieren in einfacher Sprache. Nach dem Deploy ist sie unter `anleitung.php` im App-Ordner und über den Link **Anleitung** am Seitenende erreichbar. Sie benötigt keine Anmeldung und lässt sich direkt weitergeben oder über den Browser drucken.
+
 ## Auf dem Handy installieren
 
 Nach der Einrichtung erscheint oben in der mobilen Browseransicht ein Hinweis. Unter Android öffnet **Hinzufügen** den Installationsdialog, sobald der Browser die App als installierbar meldet. Andernfalls zeigt **So geht’s** den Weg über das Browsermenü. Auf dem iPhone: **Teilen → Zum Home-Bildschirm → Hinzufügen** (bei fehlendem Menüeintrag in Safari öffnen).

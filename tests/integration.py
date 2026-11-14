@@ -35,6 +35,10 @@ class Client:
 
 def scenario(base):
  owner=Client(base); guest=Client(base)
+ code,body,headers=guest.request('anleitung.php')
+ check(code==200 and b'<html lang="de">' in body,'Public guide is available under root and subdirectory without login')
+ check('Set-Cookie' not in headers and b'<form' not in body,'Public guide requires no session or account form')
+ check(guest.request('index.php')[1].count(b'/anleitung.php')==1,'App links public guide before setup')
  guest.post('saveList',{},401)
  for invalid in ['abcdef!', 'abcdefg', 'äöüßéa!']:
   owner.post('setup',{'name':'Antonia','username':'antonia','password':invalid,'siteName':'MyWish Test','registration':'open'},422)
