@@ -17,11 +17,12 @@ final class App
     public static function now(): string { return gmdate('c'); }
     public static function text(array $in, string $key, int $max = 200, bool $required = false): string
     {
+        $label=match ($key) { 'productUrl'=>'Produktlink', 'imageUrl'=>'Bildlink', default=>$key };
         $value = $in[$key] ?? '';
-        if (!is_string($value) || !preg_match('//u', $value)) { throw new Problem(422, 'Ungültige Eingabe: '.$key); }
+        if (!is_string($value) || !preg_match('//u', $value)) { throw new Problem(422, 'Ungültige Eingabe: '.$label); }
         $value = trim(str_replace(["\r\n", "\r"], "\n", $value));
         if (class_exists('Normalizer')) { $value = \Normalizer::normalize($value) ?: $value; }
-        if (preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $value) || strlen($value) > $max || ($required && $value === '')) { throw new Problem(422, 'Bitte '.$key.' ausfüllen (maximal '.$max.' Bytes).'); }
+        if (preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $value) || strlen($value) > $max || ($required && $value === '')) { throw new Problem(422, 'Bitte '.$label.' ausfüllen (maximal '.$max.' Bytes).'); }
         return $value;
     }
     public static function username(array $in): string
@@ -43,7 +44,7 @@ final class App
     {
         if ($value === '') { return ''; }
         $p = parse_url($value);
-        if (strlen($value)>2048 || !filter_var($value, FILTER_VALIDATE_URL) || !in_array(strtolower($p['scheme'] ?? ''), ['http','https'], true) || isset($p['user']) || isset($p['pass'])) { throw new Problem(422, 'Bitte eine gültige HTTP- oder HTTPS-Adresse ohne Zugangsdaten verwenden.'); }
+        if (strlen($value)>2048 || !filter_var($value, FILTER_VALIDATE_URL) || !in_array(strtolower($p['scheme'] ?? ''), ['http','https'], true) || isset($p['user']) || isset($p['pass'])) { throw new Problem(422, 'Bitte einen gültigen Link mit http:// oder https:// ohne Zugangsdaten verwenden.'); }
         return $value;
     }
     public static function money(string $value): ?int

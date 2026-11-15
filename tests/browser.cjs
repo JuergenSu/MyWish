@@ -200,6 +200,35 @@ fs.mkdirSync(artifacts, { recursive: true });
     await page
       .getByRole("link", { name: "Wunsch hinzufügen", exact: true })
       .click();
+    // These native field hints must remain understandable without JavaScript.
+    for (const id of ["productUrl", "imageUrl"]) {
+      const link = page.locator("#" + id);
+      assert.equal(
+        await link.getAttribute("placeholder"),
+        "Gib einen Link ein …",
+      );
+      await link.fill("kein Link");
+      assert.equal(
+        await link.evaluate((input) => input.validity.patternMismatch),
+        true,
+      );
+      assert.doesNotMatch(
+        await link.evaluate((input) => input.validationMessage),
+        /URL/i,
+      );
+      for (const value of [
+        "https://shop.example/item",
+        "HTTPS://shop.example/item",
+        " http://shop.example/item ",
+        "",
+      ]) {
+        await link.fill(value);
+        assert.equal(
+          await link.evaluate((input) => input.validity.valid),
+          true,
+        );
+      }
+    }
     await page
       .getByLabel("Dein Wunsch", { exact: true })
       .fill("Ein Buch für gemütliche Winterabende");
