@@ -47,7 +47,7 @@ def scenario(base):
  owner.post('saveList',{},403,token='wrong')
  owner.post('saveList',{'name':'','occasion':'Geburtstag'},422)
  owner.post('saveList',{'name':'Bad date','occasion':'Geburtstag','eventDate':'2026-02-30'},422)
- a=owner.post('saveList',{'name':'Geburtstag <script>alert(1)</script>','occasion':'Geburtstag','eventDate':'2026-12-12','description':'Alles, was Freude macht.'},201)['id']
+ a=owner.post('saveList',{'name':'Geburtstag & <script>alert(1)</script>','occasion':'Geburtstag','eventDate':'2026-12-12','description':'Alles, was Freude macht.'},201)['id']
  b=owner.post('saveList',{'name':'Weihnachten','occasion':'Weihnachten'},201)['id']
  wish=owner.post('saveWish',{'listId':a,'title':'Buch <img src=x onerror=alert(1)>','price':'39,99','quantity':1},201)['id']
  multi=owner.post('saveWish',{'listId':a,'title':'Drei Tassen','quantity':3,'price':'0'},201)['id']
@@ -58,8 +58,11 @@ def scenario(base):
   owner.post('import',{'productUrl':bad},422)
  code,body,headers=guest.request('index.php?page=list&id='+a)
  check(code==200 and b'Anmelden' in body and b'Buch &lt;' not in body,'Guest cannot view lists')
+ check(b'myWish - Geburtstag' not in body,'Private list name is not exposed in the login title')
  code,public_before,headers=guest.request('index.php?page=share&id='+a)
  check(code==200 and b'Buch &lt;img' in public_before and b'Weihnachten' not in public_before,'Public link shows exactly the chosen list and escapes stored content')
+ expected_title=b'<title>myWish - Geburtstag &amp; &lt;script&gt;alert(1)&lt;/script&gt; von Antonia</title>'
+ check(expected_title in public_before,'Shared list title includes escaped list name and owner')
  check(headers['X-Robots-Tag']=='noindex, nofollow' and 'no-store' in headers['Cache-Control'],'Public view avoids search indexing and shared caches')
  check(b'reservation-form' not in public_before and b'available' not in public_before and b'reservedByMe' not in public_before and b'Wunsch bearbeiten' not in public_before,'Public view has no mutations or reservation state')
  check(('page=login&amp;returnList='+a).encode() in public_before,'Public reserve links lead to login with a scoped return target')
@@ -70,6 +73,7 @@ def scenario(base):
  guest.post('reserve',{'id':wish},401)
  code,body,headers=owner.request('index.php?page=list&id='+a)
  check(code==200 and b'&lt;script&gt;' in body and b'<script>alert' not in body,'Stored XSS escaped')
+ check(expected_title in body,'Authenticated list has the same dynamic browser title')
  check('frame-ancestors' in headers['Content-Security-Policy'],'CSP present')
  for invalid in ['abcdef!', 'abcdefg', 'äöüßéa!']:
   guest.post('register',{'name':'Invalid','username':'invalid','password':invalid},422)

@@ -197,6 +197,7 @@ fs.mkdirSync(artifacts, { recursive: true });
       .getByRole("button", { name: "Liste speichern", exact: true })
       .click();
     const listUrl = page.url();
+    assert.equal(await page.title(), "myWish - Ein Geburtstag voller Vorfreude von Antonia");
     await page
       .getByRole("link", { name: "Wunsch hinzufügen", exact: true })
       .click();
@@ -377,6 +378,7 @@ fs.mkdirSync(artifacts, { recursive: true });
     const noJsGuest = await browser.newContext({ javaScriptEnabled: false });
     const publicNoJs = await noJsGuest.newPage();
     await publicNoJs.goto(shareUrl);
+    assert.equal(await publicNoJs.title(), "myWish - Ein Geburtstag voller Vorfreude von Antonia");
     assert.equal(await publicNoJs.locator(".wish-card").count(), 2);
     await publicNoJs
       .locator(".wish-image-main")
