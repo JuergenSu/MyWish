@@ -306,6 +306,33 @@ with tempfile.TemporaryDirectory(prefix='mywish-http-') as temp:
   for path in ['/','/mywish/']:
    scenario(f'http://127.0.0.1:{port}'+path)
    print('PASS copy deployment, permissions, privacy and races:',path)
+  # Persistent activity baseline is consumed by real app views, never background APIs.
+  activity_app=doc/'activity-test';shutil.copytree(ROOT,activity_app,ignore=shutil.ignore_patterns('.git','config.php','state.php','layout.php','lock.php','.artifacts','__pycache__'))
+  (activity_app/'config.php').write_text("<?php return ['data'=>"+json.dumps(str(pathlib.Path(temp)/'data-activity'))+'];')
+  activity_base=f'http://127.0.0.1:{port}/activity-test/'
+  viewer=Client(activity_base)
+  viewer.post('setup',{'name':'Viewer','username':'viewer','password':'abcdefgh','siteName':'Activity','registration':'open'},201)
+  check(b'Ab jetzt merken' in viewer.request('index.php')[1],'First HTML visit initializes activity baseline')
+  actor=Client(activity_base);actor.post('register',{'name':'Neue <script>Person</script>','username':'actor','password':'abcdefgh'},201)
+  activity_list=actor.post('saveList',{'name':'Ideas','occasion':'Anderes'},201)['id']
+  for i in range(5):actor.post('saveWish',{'listId':activity_list,'title':'New '+str(i)},201)
+  viewer.get('state');viewer.get('session')
+  code,html,_=viewer.request('index.php')
+  check(code==200 and '5 Wünsche hinzugefügt'.encode() in html and b'Hat sich registriert.' in html,'Homepage groups new registration and five wishes since previous interaction')
+  check(b'Neue &lt;script&gt;Person&lt;/script&gt;' in html and b'<script>Person</script>' not in html,'Activity names are escaped')
+  check(b'keine neuen' in viewer.request('index.php')[1],'Next visit uses advanced baseline')
+  actor.post('saveWish',{'listId':activity_list,'title':'After logout'},201)
+  viewer.post('logout',{});viewer=Client(activity_base);viewer.post('login',{'username':'viewer','password':'abcdefgh'})
+  check('1 Wunsch hinzugefügt'.encode() in viewer.request('index.php')[1],'Baseline persists across logout and new session')
+  actor.post('saveWish',{'listId':activity_list,'title':'After invalid link'},201)
+  check(viewer.request('index.php?page=list&id='+'f'*32)[0]==404,'Invalid list link fails normally')
+  check('1 Wunsch hinzugefügt'.encode() in viewer.request('index.php')[1],'Invalid list request never consumes activity')
+  actor.post('saveWish',{'listId':activity_list,'title':'After interaction'},201)
+  viewer.request('index.php?page=list&id='+activity_list)
+  check(b'keine neuen' in viewer.request('index.php')[1],'A list visit also advances last user interaction')
+  viewer.post('reserve',{'id':actor.get('state')[1]['data']['wishes'][0]['id']})
+  actor.request('index.php')
+  check(b'keine neuen' in actor.request('index.php')[1],'Private reservation has no public activity event')
   # Operator registration override is enforced server-side.
   (doc/'config.php').write_text("<?php return ['data'=>"+json.dumps(str(pathlib.Path(temp)/'data-root'))+",'registration'=>'closed'];")
   closed=Client(f'http://127.0.0.1:{port}/')

@@ -9,6 +9,7 @@ final class Problem extends \RuntimeException
 
 require_once __DIR__.'/StorageProtection.php';
 require_once __DIR__.'/DiskStorage.php';
+require_once __DIR__.'/Activity.php';
 
 final class Store
 {
@@ -114,7 +115,8 @@ final class Store
         self::keys($s, ['schemaVersion','settings','users','lists','wishes','reservations','attempts']);
         if ($s['settings'] !== null) {
             if (!is_array($s['settings'])) { throw new Problem(503, 'Ungültige Konfiguration.'); }
-            self::keys($s['settings'], ['siteName','registration','createdAt']);
+            self::keys($s['settings'], array_merge(['siteName','registration','createdAt'],array_key_exists('activity',$s['settings']) ? ['activity'] : []));
+            if (array_key_exists('activity',$s['settings'])) { Activity::validate($s['settings']['activity']); }
             self::string($s['settings']['siteName'], 80, true);
             if (!in_array($s['settings']['registration'], ['open','closed'], true)) { throw new Problem(503, 'Ungültiger Registrierungsmodus.'); }
         } elseif ($s['users'] || $s['lists'] || $s['wishes'] || $s['reservations']) { throw new Problem(503, 'Unvollständige Einrichtung.'); }
@@ -129,6 +131,10 @@ final class Store
                 if (!is_array($row)) { throw new Problem(503, 'Ungültiger Datensatz.'); }
                 $allowed=$shape;
                 if ($key==='users' && array_key_exists('isAdmin',$row)) { $allowed[]='isAdmin'; }
+                if ($key==='users' && array_key_exists('activityCursor',$row)) {
+                    $allowed[]='activityCursor';
+                    if (!is_int($row['activityCursor']) || $row['activityCursor']<0) { throw new Problem(503,'Ungültiger Besuchsstand.'); }
+                }
                 if ($key==='reservations' && array_key_exists('purchasePriceCents',$row)) {
                     $allowed[]='purchasePriceCents';$price=$row['purchasePriceCents'];
                     if ($price!==null && (!is_int($price) || $price<0 || $price>999999999)) { throw new Problem(503,'Ungültiger Kaufpreis in einer Reservierung.'); }

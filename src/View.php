@@ -79,3 +79,14 @@ function shareControl(array $list): string
     if (preg_match('/^[a-z0-9.\-]+(?::[0-9]{1,5})?$/iD',$host)) { $link=(!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS']!=='off' ? 'https://' : 'http://').$host.$link; }
     return '<details class="share-control"><summary class="button secondary">'.icon('share').'Teilen<span class="sr-only">: '.e($list['name']).'</span></summary><div class="share-panel"><label>Öffentlicher Link<input class="share-url" type="text" readonly value="'.e($link).'" aria-label="Öffentlicher Link für '.e($list['name']).'"></label><div class="share-buttons"><button type="button" class="button primary" data-share-button data-share-title="'.e($list['name']).'" hidden>Link teilen</button><a class="button secondary" href="'.e($link).'">Liste öffnen</a></div><p class="field-help">Jeder mit diesem Link kann die Liste ohne Anmeldung ansehen. Zum Reservieren ist ein Konto nötig.</p><p class="share-feedback field-help" role="status" hidden></p></div></details>';
 }
+
+function activityDescription(string $type,int $count): string
+{
+    if ($type==='userRegistered') { return 'Hat sich registriert.'; }
+    $texts=[
+        'listAdded'=>['Liste hinzugefügt','Listen hinzugefügt'], 'listUpdated'=>['Liste geändert','Listen geändert'],
+        'listRemoved'=>['Liste gelöscht','Listen gelöscht'], 'wishAdded'=>['Wunsch hinzugefügt','Wünsche hinzugefügt'],
+        'wishUpdated'=>['Wunsch geändert','Wünsche geändert'], 'wishRemoved'=>['Wunsch gelöscht','Wünsche gelöscht'],
+    ];
+    return $count.' '.$texts[$type][$count===1 ? 0 : 1].'.';
+}

@@ -56,6 +56,17 @@ fs.mkdirSync(artifacts, { recursive: true });
       storageState: await sourcePage.context().storageState(),
     });
     const page = await auditContext.newPage();
+    // Freeze the actual rendered report: another homepage GET consumes the cursor.
+    if (name === "recent-activity") {
+      const html = await sourcePage.content();
+      await page.route(sourcePage.url(), (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "text/html; charset=utf-8",
+          body: html,
+        }),
+      );
+    }
     await page.goto(sourcePage.url());
     if (name.includes("share-open"))
       await page.locator(".share-control > summary").first().click();
@@ -197,7 +208,10 @@ fs.mkdirSync(artifacts, { recursive: true });
       .getByRole("button", { name: "Liste speichern", exact: true })
       .click();
     const listUrl = page.url();
-    assert.equal(await page.title(), "myWish - Ein Geburtstag voller Vorfreude von Antonia");
+    assert.equal(
+      await page.title(),
+      "myWish - Ein Geburtstag voller Vorfreude von Antonia",
+    );
     await page
       .getByRole("link", { name: "Wunsch hinzufügen", exact: true })
       .click();
@@ -378,7 +392,10 @@ fs.mkdirSync(artifacts, { recursive: true });
     const noJsGuest = await browser.newContext({ javaScriptEnabled: false });
     const publicNoJs = await noJsGuest.newPage();
     await publicNoJs.goto(shareUrl);
-    assert.equal(await publicNoJs.title(), "myWish - Ein Geburtstag voller Vorfreude von Antonia");
+    assert.equal(
+      await publicNoJs.title(),
+      "myWish - Ein Geburtstag voller Vorfreude von Antonia",
+    );
     assert.equal(await publicNoJs.locator(".wish-card").count(), 2);
     await publicNoJs
       .locator(".wish-image-main")
@@ -584,6 +601,7 @@ fs.mkdirSync(artifacts, { recursive: true });
       assert.ok(result.ok, JSON.stringify(result));
       return result.data;
     }
+    await page.goto(base); // Baseline for the returning user.
     const recipient = await browser.newContext();
     await api(recipient, "register", {
       name: "Bea",
@@ -642,6 +660,21 @@ fs.mkdirSync(artifacts, { recursive: true });
       ["1 von 2 schon gekauft", "0 von 1 schon gekauft"],
     );
     await audit(gift, "reservation-grouped");
+    await page.goto(base);
+    const activity = page.locator(".recent-activity");
+    assert.match(await activity.innerText(), /Bea/);
+    assert.match(await activity.innerText(), /Hat sich registriert/);
+    assert.match(await activity.innerText(), /1 Wunsch hinzugefügt/);
+    assert.doesNotMatch(
+      await activity.innerText(),
+      /Kaufpreis|gekauft|reserviert/,
+    );
+    await audit(page, "recent-activity");
+    await page.reload();
+    assert.match(
+      await page.locator(".recent-activity").innerText(),
+      /keine neuen Änderungen/,
+    );
     await recipient.close();
     console.log(
       `OK: no-JS setup/CRUD/8 MB upload, public sharing/native/copy/login return, reservation flow, ${audits} axe/overflow audits, keyboard skip link, local resources`,

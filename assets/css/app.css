@@ -1795,3 +1795,19 @@ legend {
 .budget-person h3 a {
   color: inherit;
 }
+
+.recent-activity {
+  padding: 24px;
+  margin-block: 24px;
+  overflow-wrap: anywhere;
+}
+.recent-activity h2 {
+  font-size: 1.3rem;
+  margin-bottom: 16px;
+}
+.recent-activity ul {
+  padding-left: 24px;
+}
+.activity-list > li + li {
+  margin-top: 16px;
+}

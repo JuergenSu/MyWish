@@ -71,13 +71,19 @@ if ($page==='list' && $state) {
     foreach ($state['lists'] as $candidate) {
         if ($candidate['id']===($_GET['id'] ?? null)) { $titleList=$candidate;break; }
     }
+    if ($titleList===null) { $page='error';$error='Die Liste wurde nicht gefunden.';http_response_code(404); }
 }
 $pageTitle=$titleList!==null ? 'myWish - '.$titleList['name'].' von '.$titleList['ownerName'] : $siteName.' · Wünsche verbinden';
+$recentActivity=null;
+if ($state && $_SERVER['REQUEST_METHOD']==='GET' && in_array($page,['home','list','reservations','account'],true) && ($page!=='list' || $titleList!==null)) {
+    try { $recentActivity=$app->activityForVisit(); }
+    catch (Throwable $ex) { [$status,$error]=safeError($ex);http_response_code($status);$page='error'; }
+}
 $flash=$_SESSION['flash'] ?? ''; unset($_SESSION['flash']);
 ?>
 <!doctype html>
 <html lang="de">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#635bdb"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="<?= e($siteName) ?>"><title><?= e($pageTitle) ?></title><link rel="icon" href="<?= e($base) ?>/assets/favicon.svg" type="image/svg+xml"><link rel="manifest" href="<?= e($base) ?>/manifest.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="<?= e($base) ?>/assets/icons/apple-touch-icon.png"><link rel="stylesheet" href="<?= e($base) ?>/assets/css/app.css?v=reservation-purchased"><script src="<?= e($base) ?>/assets/js/app.js?v=reservation-purchased" defer></script><script src="<?= e($base) ?>/assets/js/install.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#635bdb"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="<?= e($siteName) ?>"><title><?= e($pageTitle) ?></title><link rel="icon" href="<?= e($base) ?>/assets/favicon.svg" type="image/svg+xml"><link rel="manifest" href="<?= e($base) ?>/manifest.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="<?= e($base) ?>/assets/icons/apple-touch-icon.png"><link rel="stylesheet" href="<?= e($base) ?>/assets/css/app.css?v=recent-activity"><script src="<?= e($base) ?>/assets/js/app.js?v=reservation-purchased" defer></script><script src="<?= e($base) ?>/assets/js/install.js" defer></script></head>
 <body>
 <a class="skip" href="#main">Zum Inhalt</a>
 <?php if ($settings): ?>
@@ -119,6 +125,15 @@ if (in_array($page,['setup','login','register'],true)):
     $lists=array_filter($state['lists'],fn($l)=>$q==='' || stripos($l['name'].' '.$l['ownerName'],$q)!==false);
     $mine=array_filter($lists,fn($l)=>$l['ownerUserId']===$user['id']); $others=array_filter($lists,fn($l)=>$l['ownerUserId']!==$user['id']); ?>
 <div class="page-heading"><div><span class="eyebrow">DEINE KLEINE WUNSCHWELT</span><h1>Hallo <?= e($user['name']) ?><span class="wave"> ☀</span></h1><p class="muted">Wünsche sammeln. Freude schenken. Gemeinsam vorfreuen.</p></div><a class="button primary" href="<?= e(url('page=editList')) ?>"><?= icon('plus') ?>Liste erstellen</a></div>
+<?php if ($recentActivity!==null): ?><section class="panel recent-activity" aria-labelledby="recent-heading"><h2 id="recent-heading">Neu seit deinem letzten Besuch</h2>
+<?php if ($recentActivity['firstVisit']): ?><p>Ab jetzt merken wir uns deinen Besuch. Bei deinem nächsten Aufruf siehst du hier die neuen Änderungen anderer Personen.</p>
+<?php elseif (!$recentActivity['entries']): ?><p><?= $recentActivity['truncated'] ? 'In der verfügbaren Übersicht gibt es keine weiteren Änderungen anderer Personen.' : 'Seit deinem letzten Besuch gibt es keine neuen Änderungen von anderen Personen.' ?></p>
+<?php else: ?><ul class="activity-list">
+<?php foreach ($recentActivity['entries'] as $person): ?><li><strong><?= e($person['name']) ?></strong><ul>
+<?php foreach ($person['counts'] as $type=>$count): ?><li><?= e(activityDescription($type,$count)) ?></li><?php endforeach ?>
+</ul></li><?php endforeach ?></ul><?php endif ?>
+<?php if ($recentActivity['truncated']): ?><p class="field-help">Ein Teil der älteren Änderungen ist nicht mehr verfügbar. Angezeigt werden die noch gespeicherten Einträge.</p><?php endif ?>
+</section><?php endif ?>
 <section class="welcome-banner"><div><span class="eyebrow">FÜR DIE MENSCHEN, DIE DIR WICHTIG SIND</span><h2>Ein guter Wunsch ist der<br>Anfang einer schönen Überraschung.</h2><p>Alle Listen an einem Ort. Reservierungen bleiben für den Eigentümer unsichtbar.</p></div><div class="banner-gift" aria-hidden="true"><?= icon('gift') ?><span>✦</span></div></section>
 <form method="get" class="search" role="search"><label class="sr-only" for="search">Listen oder Personen suchen</label><?= icon('search') ?><input id="search" name="q" type="search" maxlength="160" placeholder="Nach Listen oder Personen suchen …" value="<?= e($q) ?>"><button type="submit" class="button quiet">Suchen</button><?php if ($q): ?><a href="<?= e(url()) ?>">Zurücksetzen</a><?php endif ?></form>
 <section class="list-section"><div class="section-heading"><h2>Meine Listen <span class="count"><?= count($mine) ?></span></h2><span class="muted">Deine Wünsche, deine Vorfreude</span></div><div class="card-grid"><?php foreach ($mine as $l) { listCard($l,true); } ?><?php if (!$mine): ?><a class="new-card" href="<?= e(url('page=editList')) ?>"><span class="circle-plus"><?= icon('plus') ?></span><strong><?= $q ? 'Keine passende eigene Liste' : 'Deine erste Wunschliste' ?></strong><span>Ein Anlass, viele kleine Glücksmomente.</span></a><?php endif ?></div></section>
