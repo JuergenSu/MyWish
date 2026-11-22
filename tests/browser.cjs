@@ -488,7 +488,27 @@ fs.mkdirSync(artifacts, { recursive: true });
       await gift.locator(".budget-total").innerText(),
       /12,34 € verplant/,
     );
+    await gift
+      .getByRole("checkbox", { name: "Schon gekauft", exact: true })
+      .check();
+    await gift.getByText("Als gekauft markiert.", { exact: true }).waitFor();
+    assert.equal(await gift.locator(".wish-card.is-purchased").count(), 1);
+    assert.equal(
+      await gift
+        .getByRole("checkbox", { name: "Schon gekauft", exact: true })
+        .isChecked(),
+      true,
+    );
     await audit(gift, "reservation");
+    await gift
+      .getByRole("checkbox", { name: "Schon gekauft", exact: true })
+      .uncheck();
+    await gift.getByText("Kaufmarkierung entfernt.", { exact: true }).waitFor();
+    assert.equal(await gift.locator(".wish-card.is-purchased").count(), 0);
+    assert.equal(
+      await gift.getByLabel("Gekauft für (€)", { exact: true }).inputValue(),
+      "12,34",
+    );
     await gift.getByLabel("Gekauft für (€)", { exact: true }).fill("");
     await gift
       .getByRole("button", { name: "Kaufpreis speichern", exact: true })
@@ -537,6 +557,82 @@ fs.mkdirSync(artifacts, { recursive: true });
     );
     await gift.keyboard.press("Enter");
     assert.equal(await gift.evaluate(() => document.activeElement.id), "main");
+    // Group multiple lists by recipient, while keeping other recipients separate.
+    const apiUrl = new URL("api/index.php", base).href;
+    async function api(context, action, data) {
+      const session = await (
+        await context.request.get(apiUrl + "?action=session")
+      ).json();
+      const response =
+        data === undefined
+          ? await context.request.get(apiUrl + "?action=" + action)
+          : await context.request.post(apiUrl + "?action=" + action, {
+              data,
+              headers: { "X-CSRF-Token": session.csrf },
+            });
+      const result = await response.json();
+      assert.ok(result.ok, JSON.stringify(result));
+      return result.data;
+    }
+    const recipient = await browser.newContext();
+    await api(recipient, "register", {
+      name: "Bea",
+      username: "recipient-bea",
+      password: "abcdefgh",
+    });
+    const firstList = await api(owner, "saveList", {
+      name: "Antonia eins",
+      occasion: "Anderes",
+    });
+    const secondList = await api(owner, "saveList", {
+      name: "Antonia zwei",
+      occasion: "Anderes",
+    });
+    const beaList = await api(recipient, "saveList", {
+      name: "Beas Liste",
+      occasion: "Anderes",
+    });
+    for (const [context, list, price] of [
+      [owner, firstList, "20"],
+      [owner, secondList, "30"],
+      [recipient, beaList, "15"],
+    ]) {
+      const wish = await api(context, "saveWish", {
+        listId: list.id,
+        title: "Geschenk " + price,
+        price,
+        quantity: "1",
+      });
+      await api(giver, "reserve", { id: wish.id });
+    }
+    await gift.goto(base + "?page=reservations");
+    assert.equal(await gift.locator(".recipient-reservations").count(), 2);
+    const antoniaGroup = gift
+      .locator(".recipient-reservations")
+      .filter({
+        has: gift.getByRole("heading", { name: "Für Antonia", exact: true }),
+      });
+    const beaGroup = gift
+      .locator(".recipient-reservations")
+      .filter({
+        has: gift.getByRole("heading", { name: "Für Bea", exact: true }),
+      });
+    assert.equal(await antoniaGroup.locator(".wish-card").count(), 2);
+    assert.equal(await beaGroup.locator(".wish-card").count(), 1);
+    const budgetTexts = await gift.locator(".budget-total").allTextContents();
+    assert.ok(
+      budgetTexts.some((text) => text.includes("50,00 €")) &&
+        budgetTexts.some((text) => text.includes("15,00 €")),
+    );
+    await antoniaGroup
+      .locator(".wish-card")
+      .first()
+      .getByRole("checkbox", { name: "Schon gekauft", exact: true })
+      .check();
+    await gift.getByText("Als gekauft markiert.", { exact: true }).waitFor();
+    assert.equal(await gift.locator(".wish-card.is-purchased").count(), 1);
+    await audit(gift, "reservation-grouped");
+    await recipient.close();
     console.log(
       `OK: no-JS setup/CRUD/8 MB upload, public sharing/native/copy/login return, reservation flow, ${audits} axe/overflow audits, keyboard skip link, local resources`,
     );

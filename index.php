@@ -30,6 +30,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
                 'saveList'=>'page=list&id='.$result['id'],
                 'saveWish','deleteWish','reserve','unreserve'=>'page=list&id='.$result['listId'],
                 'saveReservationPrice'=>'page=reservations',
+                'setReservationPurchased'=>'page=reservations#reservation-'.$result['id'],
                 'account','unlinkGoogle'=>'page=account',
                 default=>'',
             };
@@ -69,7 +70,7 @@ $flash=$_SESSION['flash'] ?? ''; unset($_SESSION['flash']);
 ?>
 <!doctype html>
 <html lang="de">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#635bdb"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="<?= e($siteName) ?>"><title><?= e($siteName) ?> · Wünsche verbinden</title><link rel="icon" href="<?= e($base) ?>/assets/favicon.svg" type="image/svg+xml"><link rel="manifest" href="<?= e($base) ?>/manifest.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="<?= e($base) ?>/assets/icons/apple-touch-icon.png"><link rel="stylesheet" href="<?= e($base) ?>/assets/css/app.css?v=reservation-prices"><script src="<?= e($base) ?>/assets/js/app.js?v=reservation-prices" defer></script><script src="<?= e($base) ?>/assets/js/install.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#635bdb"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="<?= e($siteName) ?>"><title><?= e($siteName) ?> · Wünsche verbinden</title><link rel="icon" href="<?= e($base) ?>/assets/favicon.svg" type="image/svg+xml"><link rel="manifest" href="<?= e($base) ?>/manifest.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="<?= e($base) ?>/assets/icons/apple-touch-icon.png"><link rel="stylesheet" href="<?= e($base) ?>/assets/css/app.css?v=reservation-purchased"><script src="<?= e($base) ?>/assets/js/app.js?v=reservation-purchased" defer></script><script src="<?= e($base) ?>/assets/js/install.js" defer></script></head>
 <body>
 <a class="skip" href="#main">Zum Inhalt</a>
 <?php if ($settings): ?>
@@ -166,13 +167,22 @@ if (in_array($page,['setup','login','register'],true)):
 <div class="form-actions"><button class="button primary" name="action" value="saveWish">Wunsch speichern</button><a class="button secondary" href="<?= e(url('page=list&id='.$listId)) ?>">Abbrechen</a></div></form>
 <?php if ($id): ?><details class="danger-zone narrow"><summary>Wunsch löschen</summary><p>Der Wunsch und eventuell vorhandene Reservierungen werden endgültig entfernt.</p><form method="post"><?= csrf() ?><?= hidden('action','deleteWish') ?><?= hidden('id',$id) ?><label class="check"><input type="checkbox" name="confirm" value="yes" required>Endgültige Löschung bestätigen</label><button class="button danger">Wunsch löschen</button></form></details><?php endif ?>
 <?php elseif ($page==='reservations' && $state):
-    $reserved=array_filter($state['wishes'],fn($w)=>$w['reservedByMe'] ?? false); ?>
+    $reserved=array_filter($state['wishes'],fn($w)=>$w['reservedByMe'] ?? false);
+    $recipientGroups=[];
+    foreach ($reserved as $w) {
+        $l=App::find($state['lists'],$w['listId']);$ownerId=$l['ownerUserId'];
+        $recipientGroups[$ownerId] ??= ['name'=>$l['ownerName'],'wishes'=>[]];
+        $recipientGroups[$ownerId]['wishes'][]=$w;
+    } ?>
 <div class="page-heading"><div><span class="eyebrow">VORFREUDE VERSCHENKEN</span><h1>Meine Reservierungen</h1><p class="muted">Deine kleinen Geheimnisse. Eine Reservierung löst keine Bestellung aus.</p></div><span class="round-emblem"><?= icon('heart') ?></span></div>
 <?php if ($reserved): ?>
 <section class="reservation-budget" aria-labelledby="budget-heading"><h2 id="budget-heading">Für wen habe ich wie viel verplant?</h2><p class="muted">Dein Kaufpreis zählt, sonst der Preis aus dem Wunsch. Pro Reservierung wird ein Stück gerechnet. Nur du siehst diese Übersicht.</p>
-<div class="card-grid"><?php foreach ($state['reservationSummary'] as $person): ?><article class="panel budget-person" data-owner-id="<?= e($person['ownerUserId']) ?>"><h3>Für <?= e($person['ownerName']) ?></h3><p class="budget-total"><?= e(number_format($person['totalCents']/100,2,',','.')) ?> € verplant</p><p><?= $person['reservationCount'] ?> <?= $person['reservationCount']===1 ? 'Reservierung' : 'Reservierungen' ?><?php if ($person['unpricedCount']): ?> · <?= $person['unpricedCount'] ?> ohne Preis, noch nicht eingerechnet<?php endif ?></p></article><?php endforeach ?></div></section>
+<div class="card-grid"><?php foreach ($state['reservationSummary'] as $person): ?><article class="panel budget-person" data-owner-id="<?= e($person['ownerUserId']) ?>"><h3><a href="#recipient-<?= e($person['ownerUserId']) ?>">Für <?= e($person['ownerName']) ?></a></h3><p class="budget-total"><?= e(number_format($person['totalCents']/100,2,',','.')) ?> € verplant</p><p><?= $person['reservationCount'] ?> <?= $person['reservationCount']===1 ? 'Reservierung' : 'Reservierungen' ?><?php if ($person['unpricedCount']): ?> · <?= $person['unpricedCount'] ?> ohne Preis, noch nicht eingerechnet<?php endif ?></p></article><?php endforeach ?></div></section>
 <?php endif ?>
-<div class="card-grid wish-grid"><?php foreach ($reserved as $w) { $l=App::find($state['lists'],$w['listId']); wishCard($w,$l,false,true); } ?></div>
+<?php foreach ($recipientGroups as $ownerId=>$group): ?>
+<section class="recipient-reservations" data-owner-id="<?= e($ownerId) ?>" aria-labelledby="recipient-<?= e($ownerId) ?>"><div class="section-heading"><h2 id="recipient-<?= e($ownerId) ?>">Für <?= e($group['name']) ?></h2><span class="muted"><?= count($group['wishes']) ?> <?= count($group['wishes'])===1 ? 'Reservierung' : 'Reservierungen' ?></span></div>
+<div class="card-grid wish-grid"><?php foreach ($group['wishes'] as $w) { $l=App::find($state['lists'],$w['listId']);wishCard($w,$l,false,true); } ?></div></section>
+<?php endforeach ?>
 <?php if (!$reserved): ?><?= emptyState('Noch kein Geschenk ins Auge gefasst?','Entdecke die Listen deiner Lieblingsmenschen und reserviere eine Einheit eines Wunsches.') ?><div class="center"><a class="button primary" href="<?= e(url()) ?>">Wunschlisten entdecken</a></div><?php endif ?>
 <?php elseif ($page==='account' && $state): ?>
 <?= backLink('', 'Alle Wunschlisten') ?><div class="form-heading"><span class="eyebrow">DEIN PLATZ BEI MYWISH</span><h1>Mein Konto</h1><p class="muted"><?= e($user['username']) ?> · Keine E-Mail-Benachrichtigungen, keine Tracker.</p></div>
