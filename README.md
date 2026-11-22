@@ -14,6 +14,14 @@ Eine kleine, selbst gehostete Wunschwelt für Freunde und Familie. PHP 8.2+, HTM
 - Meine Reservierungen nach beschenkter Person gruppiert, mit privatem Haken „Schon gekauft“, privaten Kaufpreisen und einer Budgetübersicht pro beschenkter Person (Kaufpreis, sonst Wunschpreis; fehlende Preise werden gekennzeichnet), Suche über Listen/Anzeigenamen, mobile Oberfläche und Formulare ohne JavaScript.
 - Installationsbanner auf dem Handy: Android-Installationsdialog oder iPhone-Anleitung für den Home-Bildschirm; App-Manifest und lokale Icons, auch im Unterordner.
 
+## Neu seit deinem letzten Besuch
+
+Die Startseite fasst Änderungen anderer Personen seit deinem letzten angemeldeten Inhaltsaufruf zusammen: neue Konten sowie hinzugefügte, geänderte und gelöschte Listen und Wünsche. Mehrere Änderungen werden pro Person gezählt. Der erste Besuch setzt einen Ausgangspunkt; es werden keine alten Daten als neue Aktivitäten ausgegeben. Der Vergleichsstand liegt im Benutzerkonto und bleibt über Abmeldungen und Gerätewechsel erhalten.
+
+Erfolgreiche GET-Aufrufe der Startseite, einer gültigen Liste, „Meine Reservierungen“ und „Mein Konto“ aktualisieren den Besuchsstand. Hintergrund-APIs, Bilder, Formulare, Fehlerseiten und die reine Admin-Statistik verbrauchen die Übersicht nicht. Eigene Änderungen werden ausgeblendet. Reservierungen, Kaufpreise, Kaufmarkierungen, Anmeldungen und Rechteänderungen erzeugen keine öffentlichen Ereignisse.
+
+Die JSON-Ablage hält höchstens 500 kompakte Änderungsereignisse vor. Bei längerer Abwesenheit weist die Oberfläche auf fehlende ältere Einträge hin. Einträge enthalten keine Bilder, E-Mail-Adressen oder früheren Feldwerte. Gelöschte Konten werden aus der aktiven Ereignisliste entfernt. Kein erneuter Migrationslauf erforderlich.
+
 ## Admin-Statistik
 
 Unter `index.php?page=admin` sehen ausschließlich angemeldete Konten mit **`isAdmin: true`** zusammengefasste Zahlen: Benutzer, Listen, Wünsche, gewünschte Stücke, Bilder, Produktlinks und Anmeldemöglichkeiten. Der Link **Admin-Statistik** erscheint für diese Konten unter „Mein Konto“ und am Seitenende. Die Seite enthält keine Änderungsfunktionen. Reservierungen und einzelne Konten oder Listen werden nicht angezeigt; Admins erhalten keine zusätzlichen Bearbeitungsrechte an fremden Listen.

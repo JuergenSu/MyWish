@@ -121,6 +121,17 @@ final class App
             return ['installed'=>true,'siteName'=>$s['settings']['siteName'], 'user'=>self::publicUser($u), 'lists'=>$lists, 'wishes'=>$wishes, 'reservationSummary'=>array_values($summary)];
         });
     }
+    public function activityForVisit(): array
+    {
+        return $this->store->transaction(function(&$s) {
+            $user=self::user($s);$cursor=$user['activityCursor'] ?? null;
+            $feed=Activity::since($s,$user['id'],$cursor);
+            foreach ($s['users'] as &$row) {
+                if ($row['id']===$user['id']) { $row['activityCursor']=$feed['sequence'];break; }
+            }unset($row);
+            return $feed;
+        });
+    }
     public function statistics(): array
     {
         return $this->store->read(function(&$s) {

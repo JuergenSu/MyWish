@@ -32,6 +32,7 @@ header("Content-Security-Policy: default-src 'none'; style-src 'self'; img-src '
     <h2>Was möchtest du machen?</h2>
     <ul class="guide-contents">
       <li><a href="#anmelden">Anmelden oder ein Konto erstellen</a></li>
+      <li><a href="#neuigkeiten">Neuigkeiten seit deinem letzten Besuch</a></li>
       <li><a href="#liste">Eine Wunschliste erstellen</a></li>
       <li><a href="#wunsch">Wünsche und Bilder hinzufügen</a></li>
       <li><a href="#teilen">Eine Liste teilen</a></li>
@@ -52,6 +53,12 @@ header("Content-Security-Policy: default-src 'none'; style-src 'self'; img-src '
     <p>Hast du schon ein Passwort-Konto und möchtest Google nutzen? Melde dich zuerst mit deinem Passwort an. Verknüpfe Google danach unter „Mein Konto“. So bleiben deine Listen bei deinem bisherigen Konto.</p>
   </section>
 
+  <section class="panel guide-section" aria-labelledby="neuigkeiten">
+    <h2 id="neuigkeiten">Was ist seit deinem letzten Besuch neu?</h2>
+    <p>Nach der Anmeldung findest du auf der Startseite „Neu seit deinem letzten Besuch“. Dort steht zum Beispiel, dass eine Person fünf Wünsche hinzugefügt hat oder dass sich jemand neu registriert hat. Auch geänderte oder gelöschte Listen und Wünsche werden zusammengefasst.</p>
+    <p>Beim ersten Besuch nach dem Update merken wir uns deinen Ausgangspunkt. Danach vergleichen wir mit deinem letzten Aufruf der Startseite, einer Liste, deiner Reservierungen oder deines Kontos. Das funktioniert auch nach dem Abmelden und auf einem anderen Gerät. Eigene Änderungen werden nicht mitgezählt.</p>
+    <p>Reservierungen und Kaufdaten anderer Personen werden nicht angezeigt. Wenn sehr viele Änderungen passiert sind, kann ein Hinweis erscheinen, dass ältere Einträge nicht mehr verfügbar sind.</p>
+  </section>
   <section class="panel guide-section" aria-labelledby="liste">
     <h2 id="liste">2. Eine Wunschliste erstellen</h2>
     <ol>

@@ -164,3 +164,9 @@ Lokale Messung vom 14. November 2026 mit PHP 8.4.24:
 | Separat gespeicherte Bildbytes | in der JSON-Datei | 21.611.256 Byte |
 
 Das sind Messwerte für diesen synthetischen Bestand mit warmem Dateicache, keine Garantie für eine vollständige Seitenladezeit auf beliebigem Hosting. Konto-/Listen-/Wunschmetadaten werden weiterhin als Sammlungen geladen, Schreibvorgänge serialisiert. Für eine kleine private Installation wird vor allem der teure globale Bildzugriff entfernt. Bei sehr vielen Metadatensätzen wäre eine weitere Aufteilung nach Liste oder eine Datenbank ein separater Ausbau.
+
+## Besuchsstand und Änderungsübersicht
+
+Schema 4 erlaubt additiv `settings.activity` mit einem monotonen `sequence`-Zähler und höchstens 500 Ereignissen (`sequence`, `actorId`, `type`, `at`). Die Ereignisse werden nach Bildkonvertierung aus den Änderungen an öffentlichen Datensätzen abgeleitet und gemeinsam mit ihnen über denselben Manifestwechsel aktiviert. Migrationen erzeugen keine Ereignisse. Unveränderte Inhalte mit neuem updatedAt erzeugen ebenfalls keine Meldung. Private Reservierungs-, Kauf-, Rollen- und Sitzungsänderungen werden nicht protokolliert. Ereignisse enthalten keine Objektinhalte oder Bildbytes.
+
+Der optionale private Benutzerwert `activityCursor` speichert den zuletzt betrachteten Stand. Reguläre Inhaltsaufrufe aktualisieren ihn unter Transaktionssperre. Der Server berechnet zuerst die sichtbare Übersicht und setzt dann den Cursor auf genau diesen Stand; konkurrierende neue Ereignisse bleiben beim nächsten Aufruf sichtbar. Beim ersten Besuch oder nach Wiederherstellung eines älteren Zählerstands wird eine neue Ausgangsbasis gesetzt. Sicherungen enthalten Ereignisse und Cursor bereits in settings/users; keine zusätzliche Datei oder Migration nötig.

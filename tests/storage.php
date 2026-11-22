@@ -48,8 +48,9 @@ try {
     $before=$store->read(fn(&$state)=>$state);$manifest=json_decode(file_get_contents($data.'/manifest.json'),true);
     $app->act('saveWish',['id'=>str_repeat('f',32),'listId'=>str_repeat('d',32),'title'=>'Nur Titel ändern','quantity'=>'3']);
     $after=json_decode(file_get_contents($data.'/manifest.json'),true);
-    foreach (['settings','users','lists','reservations','attempts'] as $table) { check($manifest['collections'][$table]===$after['collections'][$table],'Only the changed collection is rewritten: '.$table); }
+    foreach (['users','lists','reservations','attempts'] as $table) { check($manifest['collections'][$table]===$after['collections'][$table],'Only the changed collection is rewritten: '.$table); }
     check($manifest['collections']['wishes']!==$after['collections']['wishes'],'Wish metadata gets a new immutable version');
+    check($manifest['collections']['settings']!==$after['collections']['settings'],'Public wish change updates the bounded activity metadata atomically');
     $current=file_get_contents($data.'/manifest.json');chmod($data,0500);
     try { blocked(fn()=>$store->transaction(function(&$state) { $state['attempts'][]=['ip'=>'failed','at'=>time(),'kind'=>'login'];$state['lists'][0]['name']='Partial'; })); }
     finally { chmod($data,0700); }
