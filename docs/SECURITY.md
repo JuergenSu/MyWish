@@ -62,3 +62,5 @@ Der einmalige Browser-Migrationslauf erlaubt nur die festgelegte Schema-Umstellu
 ## Private Kaufpreise
 
 Kaufpreise gehören zum Reservierungsdatensatz und werden ausschließlich über die aktuelle Session-User-ID unter exklusiver Datensperre geändert. Kein Rollen- oder Admin-Override. Der Snapshot ergänzt sie nur bei eigenen Reservierungen und berechnet nur daraus das persönliche Budget. Öffentliche Listen und Eigentümeransichten bleiben unverändert, auch wenn Kaufpreise gespeichert werden. Die Admin-Statistik enthält keine Kaufpreisdaten. Leere Eingaben werden als null, Beträge als ganze Centzahlen validiert; bestehende Reservierungen ohne Feld bleiben gültig.
+
+Der Kaufstatus `isPurchased` ist ebenfalls privat und wird unabhängig vom Preis gespeichert. Die Änderung prüft dieselbe aktuelle Reservierungs-User-ID unter Transaktionssperre und erfordert POST sowie CSRF. Direkte Preisänderungen setzen oder löschen den Status nicht. Auch Admins erhalten keine fremden Kaufmarkierungen.

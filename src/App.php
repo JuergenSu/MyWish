@@ -104,6 +104,7 @@ final class App
                     $w['reservedByMe'] = $mine!==[];
                     if ($mine) {
                         $w['purchasePriceCents']=$mine[0]['purchasePriceCents'] ?? null;
+                        $w['isPurchased']=$mine[0]['isPurchased'] ?? false;
                         $ownerId=$l['ownerUserId'];
                         $summary[$ownerId] ??= ['ownerUserId'=>$ownerId,'ownerName'=>self::find($s['users'],$ownerId)['name'],'totalCents'=>0,'reservationCount'=>0,'unpricedCount'=>0];
                         $cost=$w['purchasePriceCents'] ?? $w['priceCents'];
@@ -245,6 +246,17 @@ final class App
                     $s['wishes']=array_values(array_filter($s['wishes'],fn($r)=>$r['id']!==$id));
                     $s['reservations']=array_values(array_filter($s['reservations'],fn($r)=>$r['wishId']!==$id));
                     return ['listId'=>$w['listId'],'message'=>'Wunsch gelöscht.'];
+                case 'setReservationPurchased':
+                    $w=self::find($s['wishes'],$id);
+                    foreach ($s['reservations'] as &$reservation) {
+                        if ($reservation['wishId']===$id && $reservation['userId']===$uid) {
+                            $value=array_key_exists('purchased',$in) ? $in['purchased'] : false;
+                            if (!in_array($value,[true,false,'yes','no'],true)) { throw new Problem(422,'Bitte einen gültigen Kaufstatus angeben.'); }
+                            $reservation['isPurchased']=$value===true || $value==='yes';
+                            return ['id'=>$id,'listId'=>$w['listId'],'message'=>$reservation['isPurchased'] ? 'Als gekauft markiert.' : 'Kaufmarkierung entfernt.'];
+                        }
+                    }
+                    throw new Problem(403,'Du kannst nur deine eigenen Reservierungen als gekauft markieren.');
                 case 'saveReservationPrice':
                     $w=self::find($s['wishes'],$id);
                     foreach ($s['reservations'] as &$reservation) {
@@ -261,7 +273,7 @@ final class App
                     $mine=array_filter($rs,fn($r)=>$r['userId']===$uid);
                     if ($action==='reserve') {
                         if ($mine || count($rs)>=$w['quantity']) { throw new Problem(409,'Bereits reserviert. Bitte die Liste aktualisieren.'); }
-                        $s['reservations'][]=['id'=>self::id(),'wishId'=>$id,'userId'=>$uid,'createdAt'=>self::now(),'purchasePriceCents'=>null];
+                        $s['reservations'][]=['id'=>self::id(),'wishId'=>$id,'userId'=>$uid,'createdAt'=>self::now(),'purchasePriceCents'=>null,'isPurchased'=>false];
                     } else {
                         if (!$mine) { throw new Problem(403,'Du kannst nur eigene Reservierungen freigeben.'); }
                         $s['reservations']=array_values(array_filter($s['reservations'],fn($r)=>!($r['wishId']===$id && $r['userId']===$uid)));

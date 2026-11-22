@@ -133,6 +133,10 @@ final class Store
                     $allowed[]='purchasePriceCents';$price=$row['purchasePriceCents'];
                     if ($price!==null && (!is_int($price) || $price<0 || $price>999999999)) { throw new Problem(503,'Ungültiger Kaufpreis in einer Reservierung.'); }
                 }
+                if ($key==='reservations' && array_key_exists('isPurchased',$row)) {
+                    $allowed[]='isPurchased';
+                    if (!is_bool($row['isPurchased'])) { throw new Problem(503,'Ungültiger Kaufstatus in einer Reservierung.'); }
+                }
                 self::keys($row,$allowed);
                 if ($key==='users' && array_key_exists('isAdmin',$row) && !is_bool($row['isAdmin'])) { throw new Problem(503,'Ungültiges Admin-Flag.'); }
                 foreach (['id','ownerUserId','listId','wishId','userId'] as $field) {

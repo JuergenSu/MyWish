@@ -111,6 +111,15 @@ document.querySelectorAll("form").forEach((form) => {
   });
 });
 
+// Der Kaufstatus speichert beim Anklicken. Ohne JavaScript bleibt der Button.
+document.querySelectorAll(".purchase-status-form").forEach((form) => {
+  if (typeof form.requestSubmit !== "function") return;
+  const checkbox = form.querySelector('input[name="purchased"]');
+  const button = form.querySelector('button[type="submit"]');
+  checkbox.addEventListener("change", () => form.requestSubmit(button));
+  button.hidden = true;
+});
+
 // Die optionale Bildsuche läuft als zweite Anfrage, damit die Produktvorschau
 // schon während der Suche nutzbar ist. Ohne JavaScript bleibt der POST-Button.
 (() => {

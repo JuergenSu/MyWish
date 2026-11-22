@@ -19,6 +19,7 @@ Erfolg: `{"ok":true,"data":{…},"csrf":"…"}`. Fehler: `{"ok":false,"error":{"
 | saveWish | id optional, listId, title, description optional, price optional (39,99), productUrl optional, quantity=1…99 |
 | deleteWish | id, confirm=yes |
 | reserve / unreserve | id (Wunsch) |
+| setReservationPurchased | id (Wunsch), purchased=true/false (JSON) oder yes/no (Formular; fehlende Checkbox bedeutet false) |
 | saveReservationPrice | id (Wunsch), purchasePrice optional (EUR, z. B. 12,34; leer entfernt den Kaufpreis) |
 | importImage | imageUrl (direkte HTTP(S)-Bilddatei), productUrl optional; geprüfte Vorschau mit hasImage |
 | import | productUrl; liefert unverbindliche Vorschau title/description/price/productUrl/hasImage |
@@ -60,3 +61,5 @@ Die Statistikseite `index.php?page=admin` erlaubt nur GET/HEAD und prüft `isAdm
 `saveReservationPrice` ändert ausschließlich die Reservierung des angemeldeten Nutzers für die Wunsch-ID; fremde oder nicht vorhandene eigene Reservierungen führen zu 403, unbekannte Wünsche zu 404. CSRF und POST sind Pflicht. `purchasePrice` wird als ganze Centzahl `purchasePriceCents` (null oder 0–999999999) gespeichert. Null beziehungsweise ein fehlendes Feld in Altbeständen bedeutet „kein Kaufpreis“. 0 ist ein gültiger Kaufpreis. Freigeben, Löschen des Wunsches oder Zurücksetzen der Reservierung entfernt auch den Betrag.
 
 `GET state` liefert `purchasePriceCents` nur an eigenen reservierten Wünschen. `reservationSummary` enthält nur die eigenen Reservierungen, gruppiert über alle Listen nach `ownerUserId`, mit `ownerName`, `totalCents`, `reservationCount` und `unpricedCount`. Es zählt jeweils eine Einheit: Kaufpreis, falls vorhanden, sonst aktueller Wunschpreis. Fehlt beides, wird nichts addiert und unpricedCount erhöht. Eigentümer, andere Schenkende, öffentliche Teilen-Ansichten und Admin-Statistiken erhalten keine fremden Kaufpreise oder Budgets. Keine Schema-Migration erforderlich; das Reservierungsfeld ist additiv und optional.
+
+Der optionale Reservierungswert `isPurchased` ist streng boolesch und gilt bei Altbeständen als false, auch wenn bereits ein Kaufpreis vorliegt. `setReservationPurchased` setzt den gewünschten Zustand explizit und idempotent, nur an eigenen Reservierungen mit Anmeldung/CSRF. `GET state` zeigt `isPurchased` ausschließlich an eigenen reservierten Wünschen. Kaufpreis und Budget bleiben unabhängig; Freigeben oder Zurücksetzen entfernt auch den Kaufstatus. Öffentliche, Eigentümer- und fremde Ansichten erhalten ihn nicht.

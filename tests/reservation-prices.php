@@ -27,9 +27,24 @@ try {
     foreach (['-1','1,234','1.000,00','abc','10000000',[]] as $bad) { denied(fn()=>$app->act('saveReservationPrice',['id'=>$wish,'purchasePrice'=>$bad]),422); }
     check(file_get_contents($store->dataDirectory().'/manifest.json')===$manifest,'Invalid amounts never commit');
     check((new App(new Store($root)))->snapshot()['wishes'][0]['purchasePriceCents']===1234,'Price survives reopening store');
+    check($app->snapshot()['wishes'][0]['isPurchased']===false,'Existing reservations default to not purchased, regardless of price');
+    $budget=$app->snapshot()['reservationSummary'];
+    $app->act('setReservationPurchased',['id'=>$wish,'purchased'=>true]);
+    check($app->snapshot()['wishes'][0]['isPurchased']===true && $app->snapshot()['wishes'][0]['purchasePriceCents']===1234,'Purchase status is explicit and preserves price');
+    check($app->snapshot()['reservationSummary']===$budget,'Purchase status does not change planned amounts');
+    check((new App(new Store($root)))->snapshot()['wishes'][0]['isPurchased']===true,'Purchase check survives reopening storage');
+    $statusManifest=file_get_contents($store->dataDirectory().'/manifest.json');
+    $app->act('setReservationPurchased',['id'=>$wish,'purchased'=>'yes']);
+    check(file_get_contents($store->dataDirectory().'/manifest.json')===$statusManifest,'Repeated explicit purchase status is idempotent');
+    foreach ([1,'true',[],null] as $bad) { denied(fn()=>$app->act('setReservationPurchased',['id'=>$wish,'purchased'=>$bad]),422); }
+    $app->act('setReservationPurchased',['id'=>$wish]);
+    check($app->snapshot()['wishes'][0]['isPurchased']===false && $app->snapshot()['wishes'][0]['purchasePriceCents']===1234,'Unchecked native form clears only status');
+    $app->act('setReservationPurchased',['id'=>$wish,'purchased'=>'yes']);
     $_SESSION=['userId'=>$a,'version'=>3];denied(fn()=>$app->act('saveReservationPrice',['id'=>$wish,'purchasePrice'=>'7']),403);
     check($app->snapshot()===$owner && $app->sharedList(str_repeat('d',32))===$public,'Owner and public snapshots remain identical after purchase');
     $_SESSION=['userId'=>$c,'version'=>3];denied(fn()=>$app->act('saveReservationPrice',['id'=>$wish,'purchasePrice'=>'7','userId'=>$b]),403);
+    denied(fn()=>$app->act('setReservationPurchased',['id'=>$wish,'purchased'=>true,'userId'=>$b]),403);
+    check(!array_key_exists('isPurchased',$app->snapshot()['wishes'][0]),'Purchase status hidden from other givers');
     check(!array_key_exists('purchasePriceCents',$app->snapshot()['wishes'][0]),'Another giver cannot read purchase price');
     $store->transaction(function(&$s) use ($a,$c) {
         $s['users'][2]['name']=$s['users'][0]['name'];
@@ -46,8 +61,11 @@ try {
     $app->act('unreserve',['id'=>$wish]);denied(fn()=>$app->act('saveReservationPrice',['id'=>$wish,'purchasePrice'=>'5']),403);
     check($app->snapshot()['reservationSummary'][0]['totalCents']===0,'Freed reservation disappears from budget');
     $app->act('reserve',['id'=>$wish]);check($app->snapshot()['wishes'][0]['purchasePriceCents']===null,'Re-reserving never restores old purchase amount');
+    check($app->snapshot()['wishes'][0]['isPurchased']===false,'Re-reserving resets purchase status');
     $state=$store->verify();
     foreach ([-1,1.5,'123',true,1000000000] as $bad) { $invalid=$state;$invalid['reservations'][0]['purchasePriceCents']=$bad;denied(fn()=>Store::validate($invalid),503); }
-    $_SESSION=[];denied(fn()=>$app->act('saveReservationPrice',['id'=>$wish,'purchasePrice'=>'1']),401);
+    foreach ([1,'true',null] as $bad) { $invalid=$state;$invalid['reservations'][0]['isPurchased']=$bad;denied(fn()=>Store::validate($invalid),503); }
+    $_SESSION=[];denied(fn()=>$app->act('setReservationPurchased',['id'=>$wish,'purchased'=>true]),401);
+    denied(fn()=>$app->act('saveReservationPrice',['id'=>$wish,'purchasePrice'=>'1']),401);
     echo "OK: $checks reservation price/budget/privacy checks\n";
 } finally { removeTestTree($root); }

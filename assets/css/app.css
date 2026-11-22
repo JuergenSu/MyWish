@@ -1762,3 +1762,36 @@ legend {
   padding-top: 20px;
   margin-top: 20px;
 }
+
+.purchase-status-form {
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+  margin-top: 20px;
+}
+.purchase-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  margin: 0 0 16px;
+}
+.purchase-badge.purchased {
+  color: var(--mint);
+}
+.purchase-badge.pending {
+  color: var(--muted);
+}
+.wish-card.is-purchased {
+  border-color: var(--mint);
+}
+
+.recipient-reservations {
+  margin-block: 36px;
+}
+.recipient-reservations h2 {
+  scroll-margin-top: 24px;
+  overflow-wrap: anywhere;
+}
+.budget-person h3 a {
+  color: inherit;
+}
