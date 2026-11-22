@@ -106,9 +106,10 @@ final class App
                         $w['purchasePriceCents']=$mine[0]['purchasePriceCents'] ?? null;
                         $w['isPurchased']=$mine[0]['isPurchased'] ?? false;
                         $ownerId=$l['ownerUserId'];
-                        $summary[$ownerId] ??= ['ownerUserId'=>$ownerId,'ownerName'=>self::find($s['users'],$ownerId)['name'],'totalCents'=>0,'reservationCount'=>0,'unpricedCount'=>0];
+                        $summary[$ownerId] ??= ['ownerUserId'=>$ownerId,'ownerName'=>self::find($s['users'],$ownerId)['name'],'totalCents'=>0,'reservationCount'=>0,'purchasedCount'=>0,'unpricedCount'=>0];
                         $cost=$w['purchasePriceCents'] ?? $w['priceCents'];
                         $summary[$ownerId]['reservationCount']++;
+                        if ($w['isPurchased']) { $summary[$ownerId]['purchasedCount']++; }
                         if ($cost===null) { $summary[$ownerId]['unpricedCount']++; }
                         else { $summary[$ownerId]['totalCents']+=$cost; }
                     }

@@ -31,7 +31,8 @@ try {
     $budget=$app->snapshot()['reservationSummary'];
     $app->act('setReservationPurchased',['id'=>$wish,'purchased'=>true]);
     check($app->snapshot()['wishes'][0]['isPurchased']===true && $app->snapshot()['wishes'][0]['purchasePriceCents']===1234,'Purchase status is explicit and preserves price');
-    check($app->snapshot()['reservationSummary']===$budget,'Purchase status does not change planned amounts');
+    $budget[0]['purchasedCount']=1;
+    check($app->snapshot()['reservationSummary']===$budget,'Purchase check updates count without changing planned amounts');
     check((new App(new Store($root)))->snapshot()['wishes'][0]['isPurchased']===true,'Purchase check survives reopening storage');
     $statusManifest=file_get_contents($store->dataDirectory().'/manifest.json');
     $app->act('setReservationPurchased',['id'=>$wish,'purchased'=>'yes']);
@@ -39,6 +40,7 @@ try {
     foreach ([1,'true',[],null] as $bad) { denied(fn()=>$app->act('setReservationPurchased',['id'=>$wish,'purchased'=>$bad]),422); }
     $app->act('setReservationPurchased',['id'=>$wish]);
     check($app->snapshot()['wishes'][0]['isPurchased']===false && $app->snapshot()['wishes'][0]['purchasePriceCents']===1234,'Unchecked native form clears only status');
+    check($app->snapshot()['reservationSummary'][0]['purchasedCount']===0,'Removing check reduces bought count');
     $app->act('setReservationPurchased',['id'=>$wish,'purchased'=>'yes']);
     $_SESSION=['userId'=>$a,'version'=>3];denied(fn()=>$app->act('saveReservationPrice',['id'=>$wish,'purchasePrice'=>'7']),403);
     check($app->snapshot()===$owner && $app->sharedList(str_repeat('d',32))===$public,'Owner and public snapshots remain identical after purchase');
@@ -57,8 +59,10 @@ try {
     $app->act('reserve',['id'=>str_repeat('8',32)]);$app->act('reserve',['id'=>str_repeat('9',32)]);
     $groups=array_column($app->snapshot()['reservationSummary'],null,'ownerUserId');
     check(count($groups)===2 && $groups[$a]['totalCents']===1234 && $groups[$a]['unpricedCount']===1 && $groups[$a]['reservationCount']===2,'Multiple lists merge by recipient; missing prices are explicit');
+    check($groups[$a]['purchasedCount']===1 && $groups[$c]['purchasedCount']===0,'Purchase counts stay with the correct recipient across lists');
     check($groups[$c]['totalCents']===2000,'Equal display names remain separate recipients');
     $app->act('unreserve',['id'=>$wish]);denied(fn()=>$app->act('saveReservationPrice',['id'=>$wish,'purchasePrice'=>'5']),403);
+    check($app->snapshot()['reservationSummary'][0]['purchasedCount']===0,'Freed purchase is removed from bought count');
     check($app->snapshot()['reservationSummary'][0]['totalCents']===0,'Freed reservation disappears from budget');
     $app->act('reserve',['id'=>$wish]);check($app->snapshot()['wishes'][0]['purchasePriceCents']===null,'Re-reserving never restores old purchase amount');
     check($app->snapshot()['wishes'][0]['isPurchased']===false,'Re-reserving resets purchase status');

@@ -494,6 +494,10 @@ fs.mkdirSync(artifacts, { recursive: true });
     await gift.getByText("Als gekauft markiert.", { exact: true }).waitFor();
     assert.equal(await gift.locator(".wish-card.is-purchased").count(), 1);
     assert.equal(
+      await gift.locator(".purchase-progress").innerText(),
+      "1 von 1 schon gekauft",
+    );
+    assert.equal(
       await gift
         .getByRole("checkbox", { name: "Schon gekauft", exact: true })
         .isChecked(),
@@ -505,6 +509,10 @@ fs.mkdirSync(artifacts, { recursive: true });
       .uncheck();
     await gift.getByText("Kaufmarkierung entfernt.", { exact: true }).waitFor();
     assert.equal(await gift.locator(".wish-card.is-purchased").count(), 0);
+    assert.equal(
+      await gift.locator(".purchase-progress").innerText(),
+      "0 von 1 schon gekauft",
+    );
     assert.equal(
       await gift.getByLabel("Gekauft für (€)", { exact: true }).inputValue(),
       "12,34",
@@ -607,16 +615,12 @@ fs.mkdirSync(artifacts, { recursive: true });
     }
     await gift.goto(base + "?page=reservations");
     assert.equal(await gift.locator(".recipient-reservations").count(), 2);
-    const antoniaGroup = gift
-      .locator(".recipient-reservations")
-      .filter({
-        has: gift.getByRole("heading", { name: "Für Antonia", exact: true }),
-      });
-    const beaGroup = gift
-      .locator(".recipient-reservations")
-      .filter({
-        has: gift.getByRole("heading", { name: "Für Bea", exact: true }),
-      });
+    const antoniaGroup = gift.locator(".recipient-reservations").filter({
+      has: gift.getByRole("heading", { name: "Für Antonia", exact: true }),
+    });
+    const beaGroup = gift.locator(".recipient-reservations").filter({
+      has: gift.getByRole("heading", { name: "Für Bea", exact: true }),
+    });
     assert.equal(await antoniaGroup.locator(".wish-card").count(), 2);
     assert.equal(await beaGroup.locator(".wish-card").count(), 1);
     const budgetTexts = await gift.locator(".budget-total").allTextContents();
@@ -631,6 +635,10 @@ fs.mkdirSync(artifacts, { recursive: true });
       .check();
     await gift.getByText("Als gekauft markiert.", { exact: true }).waitFor();
     assert.equal(await gift.locator(".wish-card.is-purchased").count(), 1);
+    assert.deepEqual(
+      await gift.locator(".purchase-progress").allTextContents(),
+      ["1 von 2 schon gekauft", "0 von 1 schon gekauft"],
+    );
     await audit(gift, "reservation-grouped");
     await recipient.close();
     console.log(
