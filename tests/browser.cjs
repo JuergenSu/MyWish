@@ -478,12 +478,32 @@ fs.mkdirSync(artifacts, { recursive: true });
       .getByRole("link", { name: "Meine Reservierungen", exact: true })
       .click();
     assert.equal(await gift.locator(".wish-card").count(), 1);
+    const estimatedBudget = await gift.locator(".budget-total").innerText();
+    await gift.getByLabel("Gekauft für (€)", { exact: true }).fill("12,34");
+    await gift
+      .getByRole("button", { name: "Kaufpreis speichern", exact: true })
+      .click();
+    await gift.getByText("Kaufpreis gespeichert.", { exact: true }).waitFor();
+    assert.match(
+      await gift.locator(".budget-total").innerText(),
+      /12,34 € verplant/,
+    );
     await audit(gift, "reservation");
+    await gift.getByLabel("Gekauft für (€)", { exact: true }).fill("");
+    await gift
+      .getByRole("button", { name: "Kaufpreis speichern", exact: true })
+      .click();
+    await gift.getByText("Kaufpreis gespeichert.", { exact: true }).waitFor();
+    assert.equal(
+      await gift.locator(".budget-total").innerText(),
+      estimatedBudget,
+    );
     await gift
       .getByRole("button", { name: "Reservierung freigeben", exact: true })
       .click();
     await gift.locator(".wish-card").waitFor({ state: "detached" });
     assert.equal(await gift.locator(".wish-card").count(), 0);
+    assert.equal(await gift.locator(".budget-person").count(), 0);
     await page.goto(listUrl);
     assert.equal(await page.locator(".availability").count(), 0);
     assert.deepEqual(external, [], "No external app requests");
