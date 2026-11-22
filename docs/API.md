@@ -19,6 +19,7 @@ Erfolg: `{"ok":true,"data":{…},"csrf":"…"}`. Fehler: `{"ok":false,"error":{"
 | saveWish | id optional, listId, title, description optional, price optional (39,99), productUrl optional, quantity=1…99 |
 | deleteWish | id, confirm=yes |
 | reserve / unreserve | id (Wunsch) |
+| saveReservationPrice | id (Wunsch), purchasePrice optional (EUR, z. B. 12,34; leer entfernt den Kaufpreis) |
 | importImage | imageUrl (direkte HTTP(S)-Bilddatei), productUrl optional; geprüfte Vorschau mit hasImage |
 | import | productUrl; liefert unverbindliche Vorschau title/description/price/productUrl/hasImage |
 
@@ -53,3 +54,9 @@ Sitzungen und Cookies bleiben 14 Tage seit der letzten Nutzung gültig und werde
 Seit Schema 4 liefern die öffentlichen Endpunkte unverändert `image:true/false` und gegebenenfalls `imageSourceUrl`. Interne Dateinamen, Prüfsummen und private Ablagepfade werden nicht ausgegeben. Dauerhafte Bilder liegen separat und werden nach derselben Zugriffsprüfung über `media.php` gestreamt; es gibt keine öffentliche Route zu den privaten JSON-/Bilddateien. [Speicherkonzept](STORAGE.md).
 
 Die Statistikseite `index.php?page=admin` erlaubt nur GET/HEAD und prüft `isAdmin === true` serverseitig bei jedem Zugriff. Keine öffentliche Statistik-API und keine frei aufrufbare Webfunktion zur Vergabe von Admin-Rechten. Die gezielte automatische Vergabe für `juergen.sussner@gmail.com` erfolgt ausschließlich nach erfolgreicher Prüfung der Google-Identität im OIDC-Callback. POST auf diese Seite liefert 405, reguläre angemeldete Konten erhalten 403.
+
+## Private Kaufpreise und Budget
+
+`saveReservationPrice` ändert ausschließlich die Reservierung des angemeldeten Nutzers für die Wunsch-ID; fremde oder nicht vorhandene eigene Reservierungen führen zu 403, unbekannte Wünsche zu 404. CSRF und POST sind Pflicht. `purchasePrice` wird als ganze Centzahl `purchasePriceCents` (null oder 0–999999999) gespeichert. Null beziehungsweise ein fehlendes Feld in Altbeständen bedeutet „kein Kaufpreis“. 0 ist ein gültiger Kaufpreis. Freigeben, Löschen des Wunsches oder Zurücksetzen der Reservierung entfernt auch den Betrag.
+
+`GET state` liefert `purchasePriceCents` nur an eigenen reservierten Wünschen. `reservationSummary` enthält nur die eigenen Reservierungen, gruppiert über alle Listen nach `ownerUserId`, mit `ownerName`, `totalCents`, `reservationCount` und `unpricedCount`. Es zählt jeweils eine Einheit: Kaufpreis, falls vorhanden, sonst aktueller Wunschpreis. Fehlt beides, wird nichts addiert und unpricedCount erhöht. Eigentümer, andere Schenkende, öffentliche Teilen-Ansichten und Admin-Statistiken erhalten keine fremden Kaufpreise oder Budgets. Keine Schema-Migration erforderlich; das Reservierungsfeld ist additiv und optional.

@@ -17,7 +17,7 @@ final class App
     public static function now(): string { return gmdate('c'); }
     public static function text(array $in, string $key, int $max = 200, bool $required = false): string
     {
-        $label=match ($key) { 'productUrl'=>'Produktlink', 'imageUrl'=>'Bildlink', default=>$key };
+        $label=match ($key) { 'productUrl'=>'Produktlink', 'imageUrl'=>'Bildlink', 'purchasePrice'=>'Gekauft für', default=>$key };
         $value = $in[$key] ?? '';
         if (!is_string($value) || !preg_match('//u', $value)) { throw new Problem(422, 'Ungültige Eingabe: '.$label); }
         $value = trim(str_replace(["\r\n", "\r"], "\n", $value));
@@ -94,19 +94,29 @@ final class App
                 $l['image'] = $l['image'] !== null;
                 $lists[] = $l;
             }
-            $wishes = [];
+            $wishes = []; $summary=[];
             foreach ($s['wishes'] as $w) {
                 $l = self::find($s['lists'], $w['listId']);
                 if ($l['ownerUserId'] !== $u['id']) {
                     $rs = array_filter($s['reservations'], fn($r)=>$r['wishId']===$w['id']);
                     $w['available'] = $w['quantity'] - count($rs);
-                    $w['reservedByMe'] = count(array_filter($rs, fn($r)=>$r['userId']===$u['id'])) > 0;
+                    $mine=array_values(array_filter($rs, fn($r)=>$r['userId']===$u['id']));
+                    $w['reservedByMe'] = $mine!==[];
+                    if ($mine) {
+                        $w['purchasePriceCents']=$mine[0]['purchasePriceCents'] ?? null;
+                        $ownerId=$l['ownerUserId'];
+                        $summary[$ownerId] ??= ['ownerUserId'=>$ownerId,'ownerName'=>self::find($s['users'],$ownerId)['name'],'totalCents'=>0,'reservationCount'=>0,'unpricedCount'=>0];
+                        $cost=$w['purchasePriceCents'] ?? $w['priceCents'];
+                        $summary[$ownerId]['reservationCount']++;
+                        if ($cost===null) { $summary[$ownerId]['unpricedCount']++; }
+                        else { $summary[$ownerId]['totalCents']+=$cost; }
+                    }
                 }
                 if (isset($w['image']['sourceUrl'])) { $w['imageSourceUrl']=$w['image']['sourceUrl']; }
                 $w['image'] = $w['image'] !== null;
                 $wishes[] = $w;
             }
-            return ['installed'=>true,'siteName'=>$s['settings']['siteName'], 'user'=>self::publicUser($u), 'lists'=>$lists, 'wishes'=>$wishes];
+            return ['installed'=>true,'siteName'=>$s['settings']['siteName'], 'user'=>self::publicUser($u), 'lists'=>$lists, 'wishes'=>$wishes, 'reservationSummary'=>array_values($summary)];
         });
     }
     public function statistics(): array
@@ -235,6 +245,15 @@ final class App
                     $s['wishes']=array_values(array_filter($s['wishes'],fn($r)=>$r['id']!==$id));
                     $s['reservations']=array_values(array_filter($s['reservations'],fn($r)=>$r['wishId']!==$id));
                     return ['listId'=>$w['listId'],'message'=>'Wunsch gelöscht.'];
+                case 'saveReservationPrice':
+                    $w=self::find($s['wishes'],$id);
+                    foreach ($s['reservations'] as &$reservation) {
+                        if ($reservation['wishId']===$id && $reservation['userId']===$uid) {
+                            $reservation['purchasePriceCents']=self::money(self::text($in,'purchasePrice',12));
+                            return ['listId'=>$w['listId'],'message'=>'Kaufpreis gespeichert.'];
+                        }
+                    }
+                    throw new Problem(403,'Du kannst nur den Kaufpreis deiner eigenen Reservierung speichern.');
                 case 'reserve': case 'unreserve':
                     $w=self::find($s['wishes'],$id); $l=self::find($s['lists'],$w['listId']);
                     if ($l['ownerUserId']===$uid) { throw new Problem(403,'Eigene Wünsche können nicht reserviert werden.'); }
@@ -242,7 +261,7 @@ final class App
                     $mine=array_filter($rs,fn($r)=>$r['userId']===$uid);
                     if ($action==='reserve') {
                         if ($mine || count($rs)>=$w['quantity']) { throw new Problem(409,'Bereits reserviert. Bitte die Liste aktualisieren.'); }
-                        $s['reservations'][]=['id'=>self::id(),'wishId'=>$id,'userId'=>$uid,'createdAt'=>self::now()];
+                        $s['reservations'][]=['id'=>self::id(),'wishId'=>$id,'userId'=>$uid,'createdAt'=>self::now(),'purchasePriceCents'=>null];
                     } else {
                         if (!$mine) { throw new Problem(403,'Du kannst nur eigene Reservierungen freigeben.'); }
                         $s['reservations']=array_values(array_filter($s['reservations'],fn($r)=>!($r['wishId']===$id && $r['userId']===$uid)));

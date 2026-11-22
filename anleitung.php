@@ -102,6 +102,10 @@ header("Content-Security-Policy: default-src 'none'; style-src 'self'; img-src '
       <li>Unter „Meine Reservierungen“ findest du deine Auswahl wieder.</li>
     </ol>
     <p>Du reservierst pro Wunsch ein Stück. Andere angemeldete Schenkende sehen, ob noch etwas verfügbar ist. <strong>Die Person, der die Liste gehört, sieht nicht, ob oder wer etwas reserviert hat.</strong> Eigene Wünsche kannst du nicht selbst reservieren.</p>
+    <h3>Kaufpreis und deine Summen</h3>
+    <p>Unter „Meine Reservierungen“ kannst du bei jedem Wunsch unter „Gekauft für (€)“ deinen tatsächlichen Preis eintragen. Tippe danach auf „Kaufpreis speichern“. Du kannst den Betrag später ändern. Lass das Feld leer, wenn du wieder den Preis aus dem Wunsch verwenden möchtest.</p>
+    <p>Oben siehst du für jede beschenkte Person, wie viel Geld du verplant hast. Wünsche aus mehreren Listen dieser Person werden zusammengezählt. Es zählt dein eingetragener Kaufpreis, sonst der Preis aus dem Wunsch. Fehlt beides, steht dabei, wie viele Reservierungen noch keinen Preis haben. Diese sind noch nicht in der Summe enthalten.</p>
+    <p>Deine Kaufpreise und deine Übersicht siehst nur du. Wenn du eine Reservierung freigibst, verschwindet auch ihr Kaufpreis und ihr Betrag wird nicht mehr mitgezählt.</p>
     <p><strong>Eine Reservierung ist kein Kauf.</strong> Bestelle oder kaufe das Geschenk selbst. „Zum Produkt“ öffnet den Shop, wenn ein Link hinterlegt ist.</p>
     <p>Du möchtest das Geschenk doch nicht kaufen? Wähle bei deinem reservierten Wunsch „Reservierung freigeben“. Dann können andere ihn wieder reservieren.</p>
   </section>

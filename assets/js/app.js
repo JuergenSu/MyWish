@@ -52,7 +52,11 @@ document.querySelectorAll("form").forEach((form) => {
         form.getAttribute("aria-busy") === "true")
     )
       return;
-    if (!form.matches(".reservation-form") || !window.fetch) {
+    if (
+      !form.matches(".reservation-form") ||
+      !window.fetch ||
+      form.elements.returnPage?.value === "reservations"
+    ) {
       if (event.submitter) {
         event.submitter.setAttribute("aria-busy", "true");
         form.classList.add("submitting");
@@ -94,18 +98,7 @@ document.querySelectorAll("form").forEach((form) => {
         return;
       }
       feedback(result.data.message);
-      if (
-        form.elements.returnPage.value === "reservations" &&
-        !result.data.reservedByMe
-      ) {
-        form.closest(".wish-card").remove();
-        if (!document.querySelector(".wish-card"))
-          feedback(
-            "Alle Reservierungen freigegeben. In „Alle Listen“ findest du neue Geschenkideen.",
-          );
-      } else {
-        reservationStatus(form, result.data);
-      }
+      reservationStatus(form, result.data);
     } catch {
       button.disabled = false;
       feedback(

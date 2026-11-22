@@ -127,7 +127,13 @@ final class Store
         foreach ($shapes as $key=>$shape) {
             foreach ($s[$key] as $row) {
                 if (!is_array($row)) { throw new Problem(503, 'Ungültiger Datensatz.'); }
-                self::keys($row, $key==='users' && array_key_exists('isAdmin',$row) ? array_merge($shape,['isAdmin']) : $shape);
+                $allowed=$shape;
+                if ($key==='users' && array_key_exists('isAdmin',$row)) { $allowed[]='isAdmin'; }
+                if ($key==='reservations' && array_key_exists('purchasePriceCents',$row)) {
+                    $allowed[]='purchasePriceCents';$price=$row['purchasePriceCents'];
+                    if ($price!==null && (!is_int($price) || $price<0 || $price>999999999)) { throw new Problem(503,'Ungültiger Kaufpreis in einer Reservierung.'); }
+                }
+                self::keys($row,$allowed);
                 if ($key==='users' && array_key_exists('isAdmin',$row) && !is_bool($row['isAdmin'])) { throw new Problem(503,'Ungültiges Admin-Flag.'); }
                 foreach (['id','ownerUserId','listId','wishId','userId'] as $field) {
                     if (array_key_exists($field,$row) && (!is_string($row[$field]) || !preg_match('/^[a-f0-9]{32}$/D',$row[$field]))) { throw new Problem(503, 'Ungültige Objekt-ID.'); }

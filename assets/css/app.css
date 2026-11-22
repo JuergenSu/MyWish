@@ -1740,3 +1740,25 @@ legend {
   font-size: 2rem;
   font-weight: 700;
 }
+
+.reservation-budget {
+  margin-block: 32px;
+}
+.reservation-budget > p {
+  margin-block: 12px 24px;
+}
+.budget-person {
+  padding: 24px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.budget-total {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin-block: 12px;
+}
+.purchase-price-form {
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+  margin-top: 20px;
+}

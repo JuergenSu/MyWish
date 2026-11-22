@@ -58,3 +58,7 @@ Der einmalige Browser-Migrationslauf erlaubt nur die festgelegte Schema-Umstellu
 ## Admin-Statistik
 
 `isAdmin` ist ein optionales, streng boolesches Benutzerfeld in Schema 4; fehlende Werte gelten als false. Betreiberwerkzeuge können es vergeben. Als gezielte Ausnahme wird nach erfolgreicher OIDC-Prüfung für `juergen.sussner@gmail.com` automatisch true gespeichert. Entscheidend ist ausschließlich die bestätigte E-Mail aus dem geprüften Google-ID-Token; frei eingegebene Benutzernamen, Formulardaten und ähnliche Adressen lösen keine Vergabe aus. Andere neue Konten über Setup, Registrierung oder Google erhalten false; Kontoformulare übernehmen das Feld nicht. Jede Statistikabfrage prüft den aktuellen Datensatz und die Sitzungsversion unter Lesesperre. Ein entzogenes Flag wirkt sofort. Die Seite akzeptiert nur GET/HEAD, zeigt keine Reservierungszahlen oder personenbezogene Details und erweitert keine Rechte an fremden Listen.
+
+## Private Kaufpreise
+
+Kaufpreise gehören zum Reservierungsdatensatz und werden ausschließlich über die aktuelle Session-User-ID unter exklusiver Datensperre geändert. Kein Rollen- oder Admin-Override. Der Snapshot ergänzt sie nur bei eigenen Reservierungen und berechnet nur daraus das persönliche Budget. Öffentliche Listen und Eigentümeransichten bleiben unverändert, auch wenn Kaufpreise gespeichert werden. Die Admin-Statistik enthält keine Kaufpreisdaten. Leere Eingaben werden als null, Beträge als ganze Centzahlen validiert; bestehende Reservierungen ohne Feld bleiben gültig.

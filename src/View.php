@@ -28,7 +28,7 @@ function field(string $name,string $label,mixed $value='',string $type='text',bo
     if ($type==='password' && $autocomplete==='new-password') {
         $extra.=' minlength="8" pattern=".{8,}" title="'.e(MyWish\App::PASSWORD_HINT).'"';
     }
-    return '<label>'.e($label).'<input name="'.e($name).'" type="'.e($type).'" value="'.e(is_scalar($value) ? $value : '').'"'.($required ? ' required' : '').$extra.($autocomplete ? ' autocomplete="'.e($autocomplete).'"' : '').($name==='price' ? ' inputmode="decimal"' : '').'></label>';
+    return '<label>'.e($label).'<input name="'.e($name).'" type="'.e($type).'" value="'.e(is_scalar($value) ? $value : '').'"'.($required ? ' required' : '').$extra.($autocomplete ? ' autocomplete="'.e($autocomplete).'"' : '').(in_array($name,['price','purchasePrice'],true) ? ' inputmode="decimal"' : '').'></label>';
 }
 function textarea(string $name,string $label,mixed $value): string { return '<label>'.e($label).'<textarea name="'.e($name).'" rows="4" maxlength="4000">'.e(is_scalar($value) ? $value : '').'</textarea></label>'; }
 function imageField(bool $hasImage): string { return '<label>Eigenes Bild (optional)<input type="file" name="image" accept="image/jpeg,image/png,image/webp"></label><p class="field-help">JPEG, PNG oder WebP · max. 8 MB und 16 Megapixel. PNG-Screenshots sind erlaubt. Bilder werden auf maximal 1200 Pixel verkleinert und geschützt gespeichert.</p>'.($hasImage ? '<label class="check"><input type="checkbox" name="removeImage" value="yes">Vorhandenes Bild entfernen</label>' : ''); }
@@ -52,6 +52,14 @@ function wishCard(array $w,array $l,bool $own,bool $reservationPage=false,bool $
 <?php elseif ($own): ?><a class="button secondary full" href="<?= e(url('page=wish&id='.$w['id'])) ?>"><?= icon('edit') ?>Wunsch bearbeiten</a>
 <?php else: ?><p class="availability <?= $w['reservedByMe'] ? 'mine' : ($w['available']>0 ? 'free' : 'taken') ?>"><?= icon($w['reservedByMe'] ? 'check' : 'gift') ?><?= $w['reservedByMe'] ? 'Eine Einheit für dich reserviert' : ($w['available']>0 ? ($w['quantity']>1 ? $w['available'].' von '.$w['quantity'].' verfügbar' : 'Noch zu haben') : 'Bereits reserviert') ?></p>
 <?php if ($w['reservedByMe'] || $w['available']>0): ?><form method="post" class="reservation-form" data-api="<?= e($GLOBALS['base']) ?>/api/index.php"><?= csrf() ?><?= hidden('action',$w['reservedByMe'] ? 'unreserve' : 'reserve') ?><?= hidden('id',$w['id']) ?><?= hidden('returnPage',$reservationPage ? 'reservations' : 'list') ?><button class="button <?= $w['reservedByMe'] ? 'secondary' : 'primary' ?> full"><?= icon($w['reservedByMe'] ? 'check' : 'heart') ?><?= $w['reservedByMe'] ? 'Reservierung freigeben' : ($w['quantity']>1 ? 'Eine Einheit reservieren' : 'Für mich reservieren') ?></button></form><?php else: ?><button class="button secondary full" disabled>Schon verplant</button><?php endif ?><?php endif ?>
+<?php if ($reservationPage && ($w['reservedByMe'] ?? false)):
+    $purchasePrice=isset($w['purchasePriceCents']) ? number_format($w['purchasePriceCents']/100,2,',','') : '';
+    if (($GLOBALS['form']['action'] ?? '')==='saveReservationPrice' && ($GLOBALS['form']['id'] ?? '')===$w['id']) { $purchasePrice=$GLOBALS['form']['purchasePrice'] ?? ''; }
+?>
+<form method="post" class="purchase-price-form stack"><?= csrf() ?><?= hidden('action','saveReservationPrice') ?><?= hidden('id',$w['id']) ?>
+<?= field('purchasePrice','Gekauft für (€)',$purchasePrice,'text',false,12) ?>
+<p class="field-help">Preis für das von dir reservierte Stück. Leer lassen, um wieder den Wunschpreis zu verwenden. Nur du siehst deinen Kaufpreis.</p><button class="button secondary full">Kaufpreis speichern</button></form>
+<?php endif ?>
 </div></div></article>
 <?php }
 
