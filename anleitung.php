@@ -81,6 +81,7 @@ header("Content-Security-Policy: default-src 'none'; style-src 'self'; img-src '
     </ol>
     <h3>Einen Link aus einem Shop verwenden</h3>
     <p>Kopiere den Link zur Produktseite in das Feld „Produktlink“. Tippe auf „Daten übernehmen“. MyWish versucht, den Namen, den Preis und ein Bild einzutragen.</p>
+    <p>Ein Produktlink kann in derselben Liste nur einmal gespeichert werden. Ist der Link schon vorhanden, zeigt MyWish einen Hinweis. Bearbeite dann den vorhandenen Wunsch. In einer anderen Liste kannst du denselben Link verwenden.</p>
     <p>Prüfe die Angaben. Manche Shops lassen das Auslesen nicht zu. Du kannst fehlende Angaben selbst ergänzen. <strong>Erst „Wunsch speichern“ übernimmt den Wunsch in deine Liste.</strong></p>
     <h3>Ein Bild auswählen</h3>
     <p>Unter „Eigenes Bild“ kannst du ein Foto oder einen Handy-Screenshot auswählen. Erlaubt sind JPG, PNG und WebP bis 8 MB. Das Bild wird automatisch verkleinert.</p>

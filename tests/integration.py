@@ -53,6 +53,15 @@ def scenario(base):
  multi=owner.post('saveWish',{'listId':a,'title':'Drei Tassen','quantity':3,'price':'0'},201)['id']
  owner.post('saveWish',{'listId':a,'title':'bad','price':'-1'},422)
  owner.post('saveWish',{'listId':a,'title':'bad','productUrl':'file:///etc/passwd'},422)
+ linked=owner.post('saveWish',{'listId':a,'title':'Produkt mit Link','productUrl':'https://shop.example/check?sku=123'},201)['id']
+ message=owner.post('saveWish',{'listId':a,'title':'Doppelt','productUrl':'https://shop.example/check?utm_source=mail&sku=123#details'},409)
+ check('bereits in dieser Liste' in message['message'],'API explains duplicate product link')
+ owner.post('saveWish',{'id':linked,'listId':a,'title':'Bearbeitet','productUrl':'https://shop.example/check?sku=123'})
+ owner.post('saveWish',{'id':wish,'listId':a,'title':'Anderer Wunsch','productUrl':'https://shop.example/check?sku=123'},409)
+ fields={'action':'saveWish','csrf':owner.csrf,'listId':a,'title':'Eingabe bleibt erhalten','productUrl':'https://shop.example/check?sku=123'}
+ code,body,_=owner.request('index.php?page=wish&listId='+a,urllib.parse.urlencode(fields).encode(),{'Content-Type':'application/x-www-form-urlencoded'})
+ check(code==409 and b'bereits in dieser Liste' in body and b'value="Eingabe bleibt erhalten"' in body,'Native form explains duplicate and preserves input')
+ owner.post('deleteWish',{'id':linked,'confirm':'yes'})
  owner.post('reserve',{'id':wish},403)
  for bad in ['http://127.0.0.1','http://169.254.169.254','file:///etc/passwd','http://10.1.1.1']:
   owner.post('import',{'productUrl':bad},422)

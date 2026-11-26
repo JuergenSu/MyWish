@@ -47,6 +47,29 @@ final class App
         if (strlen($value)>2048 || !filter_var($value, FILTER_VALIDATE_URL) || !in_array(strtolower($p['scheme'] ?? ''), ['http','https'], true) || isset($p['user']) || isset($p['pass'])) { throw new Problem(422, 'Bitte einen gültigen Link mit http:// oder https:// ohne Zugangsdaten verwenden.'); }
         return $value;
     }
+    private static function productLinkKey(string $url): string
+    {
+        $p=parse_url($url);$host=strtolower($p['host']);$scheme=strtolower($p['scheme']);
+        $port=$p['port'] ?? null;
+        if (($scheme==='http' && $port===80) || ($scheme==='https' && $port===443)) { $port=null; }
+        if ($port===null && in_array($host,['amazon.de','www.amazon.de','m.amazon.de','smile.amazon.de'],true)
+            && preg_match('~/(?:dp|gp/product|gp/aw/d)/([A-Z0-9]{10})(?:/|$)~i',$p['path'] ?? '',$asin)) {
+            return 'amazon.de:'.strtoupper($asin[1]);
+        }
+        $parameters=[];
+        foreach (explode('&',$p['query'] ?? '') as $part) {
+            if ($part==='') { continue; }
+            $pair=explode('=',$part,2);$name=urldecode($pair[0]);
+            if (str_starts_with(strtolower($name),'utm_') || in_array(strtolower($name),['fbclid','gclid','dclid','msclkid','gbraid','wbraid','mc_cid','mc_eid','_ga','_gl'],true)) { continue; }
+            $parameters[rawurlencode($name)][]=isset($pair[1]) ? '='.rawurlencode(urldecode($pair[1])) : '';
+        }
+        ksort($parameters,SORT_STRING);$query=[];
+        foreach ($parameters as $name=>$values) { foreach ($values as $value) { $query[]=$name.$value; } }
+        // Keep hash routes, which can identify different products in browser apps.
+        $fragment=$p['fragment'] ?? '';
+        if (!str_starts_with($fragment,'/') && !str_starts_with($fragment,'!')) { $fragment=''; }
+        return json_encode([$host,$port,$p['path'] ?? '/',$query,$fragment],JSON_THROW_ON_ERROR);
+    }
     public static function money(string $value): ?int
     {
         if ($value === '') { return null; }
@@ -247,9 +270,21 @@ final class App
                 case 'saveWish':
                     $listId=self::text($in,'listId',32,true); self::owner($s,$listId,$uid);
                     if ($id!=='') { $old=self::find($s['wishes'],$id); if ($old['listId']!==$listId) { throw new Problem(403,'Dieser Wunsch gehört zu einer anderen Liste.'); } }
+                    $productUrl=self::webUrl(self::text($in,'productUrl',2048));
+                    if ($productUrl!=='') {
+                        $linkKey=self::productLinkKey($productUrl);
+                        // Existing duplicates remain editable; only new conflicts are rejected.
+                        if (!isset($old) || $old['productUrl']==='' || self::productLinkKey($old['productUrl'])!==$linkKey) {
+                            foreach ($s['wishes'] as $existing) {
+                                if ($existing['listId']===$listId && $existing['id']!==$id && $existing['productUrl']!=='' && self::productLinkKey($existing['productUrl'])===$linkKey) {
+                                    throw new Problem(409,'Dieser Link ist bereits in dieser Liste gespeichert. Bitte bearbeite den vorhandenen Wunsch oder verwende einen anderen Link.');
+                                }
+                            }
+                        }
+                    }
                     $qty=$in['quantity'] ?? '1';
                     if (!is_scalar($qty) || !preg_match('/^[1-9][0-9]?$/D',(string)$qty)) { throw new Problem(422,'Die Menge muss zwischen 1 und 99 liegen.'); }
-                    $w=['id'=>$id ?: self::id(),'listId'=>$listId,'title'=>self::text($in,'title',200,true),'description'=>self::text($in,'description',4000),'priceCents'=>self::money(self::text($in,'price',12)),'currency'=>'EUR','productUrl'=>self::webUrl(self::text($in,'productUrl',2048)),'quantity'=>(int)$qty,'image'=>self::image($in,$old['image'] ?? null),'createdAt'=>$old['createdAt'] ?? self::now(),'updatedAt'=>self::now()];
+                    $w=['id'=>$id ?: self::id(),'listId'=>$listId,'title'=>self::text($in,'title',200,true),'description'=>self::text($in,'description',4000),'priceCents'=>self::money(self::text($in,'price',12)),'currency'=>'EUR','productUrl'=>$productUrl,'quantity'=>(int)$qty,'image'=>self::image($in,$old['image'] ?? null),'createdAt'=>$old['createdAt'] ?? self::now(),'updatedAt'=>self::now()];
                     // Jede Mengenänderung setzt Reservierungen zurück, unabhängig von ihrem Bestand.
                     if (isset($old) && $old['quantity']!==$w['quantity']) { $s['reservations']=array_values(array_filter($s['reservations'],fn($r)=>$r['wishId']!==$id)); }
                     self::upsert($s['wishes'],$w); return ['id'=>$w['id'],'listId'=>$listId,'message'=>'Wunsch gespeichert.'];

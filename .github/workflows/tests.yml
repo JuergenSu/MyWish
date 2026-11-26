@@ -20,6 +20,7 @@ jobs:
       - run: php tests/admin.php
       - run: php tests/reservation-prices.php
       - run: php tests/activity.php
+      - run: php tests/wish-links.php
       - run: php tests/storage.php
       - if: matrix.php == '8.4'
         run: php -d memory_limit=512M tests/storage-performance.php
