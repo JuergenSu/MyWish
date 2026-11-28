@@ -55,6 +55,8 @@ try {
     $app->act('reserve',['id'=>$wish]);check($app->snapshot()['wishes'][0]['reservationCategory']==='Sonstiges','Freed and newly reserved gift starts in Sonstiges');
     denied(fn()=>$set(str_repeat('0',32),'Ostern'),404);
     $save=fn(array $fields)=>$app->act('saveReservationDetails',['id'=>$wish]+$fields);
+    $_SESSION=['userId'=>$a,'version'=>3];$owner=$app->snapshot();$public=$app->sharedList($list);
+    $_SESSION=['userId'=>$b,'version'=>3];
     $activity=$store->read(fn(&$s)=>$s['settings']['activity']);
     $save(['category'=>'Weihnachten','purchasePrice'=>'19,99','purchased'=>'yes']);
     $saved=$app->snapshot()['wishes'][0];

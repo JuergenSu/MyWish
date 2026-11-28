@@ -97,6 +97,14 @@ document.querySelectorAll("form").forEach((form) => {
         feedback(result.error.message, true);
         return;
       }
+      if (
+        typeof result.data.hasManyReservations === "boolean" &&
+        result.data.hasManyReservations !==
+          Boolean(document.querySelector(".reservation-notice"))
+      ) {
+        window.location.reload();
+        return;
+      }
       feedback(result.data.message);
       reservationStatus(form, result.data);
     } catch {

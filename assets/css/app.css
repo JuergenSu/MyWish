@@ -606,6 +606,11 @@ summary:focus-visible {
 .notice > .icon {
   margin-top: 1px;
 }
+.reservation-notice {
+  color: #735015;
+  background: #fff7e5;
+  border-color: #eddbaf;
+}
 .panel {
   background: #fff;
   border: 1px solid var(--line);
@@ -1811,9 +1816,43 @@ legend {
 .recipient-reservations {
   margin-block: 36px;
 }
+.recipient-reservations > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  cursor: pointer;
+  list-style: none;
+}
+.recipient-reservations > summary::-webkit-details-marker {
+  display: none;
+}
+.recipient-reservations > summary::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--primary);
+  border-bottom: 2px solid var(--primary);
+  transform: rotate(-45deg);
+}
+.recipient-reservations[open] > summary::after {
+  transform: rotate(45deg);
+}
+.recipient-reservations > summary .muted {
+  font-size: 0.8rem;
+}
 .recipient-reservations h2 {
-  scroll-margin-top: 24px;
+  font-size: 1.15rem;
   overflow-wrap: anywhere;
+}
+.recipient-reservations > .wish-grid {
+  margin-top: 16px;
+  scroll-margin-top: 24px;
 }
 .budget-person h3 a {
   color: inherit;

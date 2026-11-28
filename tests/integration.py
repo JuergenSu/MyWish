@@ -218,7 +218,13 @@ def scenario(base):
  check(owner.get('state')[1]['data']==before and guest.request('index.php?page=share&id='+a)[1]==public_before,'Combined save does not expose private data')
  with concurrent.futures.ThreadPoolExecutor(max_workers=10) as pool: statuses=list(pool.map(lambda u:reserve(u,multi),users))
  check(statuses.count(200)==3 and statuses.count(409)==7,'Quantity three has exactly three winners')
- winner.post('unreserve',{'id':wish}); check(owner.get('state')[1]['data']==before,'Owner representation identical before/after reservation change')
+ heavy=owner.get('state')[1]['data']
+ expected=json.loads(json.dumps(before));next(l for l in expected['lists'] if l['id']==a)['hasManyReservations']=True
+ check(heavy==expected,'Owner sees only the coarse threshold boolean when more than half is reserved')
+ for viewer,path in [(owner,'index.php?page=list&id='+a),(winner,'index.php?page=list&id='+a),(guest,'index.php?page=share&id='+a)]:
+  code,html,_=viewer.request(path)
+  check(code==200 and html.count(b'Achtung, auf dieser Liste ist schon viel reserviert.')==1,'Owner, giver and guest all see the same notice')
+ winner.post('unreserve',{'id':wish}); check(owner.get('state')[1]['data']==expected,'Notice remains while three out of four units are reserved')
  users[0].post('reserve',{'id':wish}); users[0].post('unreserve',{'id':wish})
  owner.post('deleteWish',{'id':multi},422)
  owner.post('deleteWish',{'id':multi,'confirm':'yes'})

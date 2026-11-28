@@ -34,6 +34,10 @@ Neue Passwörter bei `setup`, `register` und `account.newPassword` benötigen mi
 
 `state.wishes`: Bei fremden Listen zusätzlich `available` und `reservedByMe`; bei eigenen Listen fehlen diese Felder vollständig. Es gibt keine API für die Reservierungstabelle, fremde Kontodaten, Nutzerlisten oder Eigentümerübertragung. IDs ersetzen keine Rechteprüfung. Alle Eigentümerprüfungen und Reservierungen laufen in derselben Storage-Transaktion.
 
+`state.lists[].hasManyReservations` und das Listenobjekt der öffentlichen Teilen-Ansicht enthalten für alle denselben berechneten booleschen Wert. Er ist genau dann true, wenn die Zahl der Reservierungen größer als die Hälfte der Summe aller gewünschten Stücke dieser Liste ist. Genau die Hälfte und leere Listen ergeben false. Kaufstatus, Kaufpreise und Reservierungskategorien ändern die Berechnung nicht. Es werden keine zusätzlichen Zähler, Prozentsätze, Nutzer-IDs oder Reservierungsdetails ausgegeben. Das Feld ist die ausdrückliche Ausnahme vom Verbergen der Reservierungsstände vor Eigentümern und Gästen.
+
+Die Antworten auf `reserve` und `unreserve` enthalten ebenfalls `hasManyReservations`. Wechselt die Schwelle bei einer Änderung über JavaScript, lädt die Oberfläche die aktuelle Listenansicht neu und zeigt beziehungsweise entfernt den Hinweis. Es gibt keine regelmäßige Hintergrundabfrage anderer Nutzeraktionen.
+
 
 Google-Anmeldung ist kein frei aufrufbarer Login-API-Token: `POST auth/google/start.php` mit `csrf`, `purpose=login|link|reauthenticate` und bei Verknüpfung dem aktuellen Passwort startet die Weiterleitung. `GET auth/google/callback.php` verarbeitet nur den gebundenen einmaligen OAuth-State und Code. Client-Secret/ID-Token gehören niemals in Browser-API-Payloads. `account` und `deleteAccount` verlangen bei Google-only-Konten eine höchstens fünf Minuten alte Google-Reauthentifizierung statt eines lokalen Passworts. `POST unlinkGoogle` benötigt ein bestehendes lokales Passwort als `currentPassword`.
 
@@ -44,7 +48,7 @@ Die eigene `state.user`-Antwort enthält zusätzlich `hasLocalPassword`, `google
 
 ## Öffentliche Listenansicht und Vorschauen
 
-`GET index.php?page=share&id=LISTEN_ID` zeigt ohne Anmeldung genau eine Liste. Die bestehende zufällige 128-Bit-ID ist der Zugang zum geteilten Inhalt, es gibt keine öffentliche Listenübersicht oder zusätzliche JSON-API. Angezeigt werden Listen-/Wunschdaten und der Anzeigename, keine Kontodaten oder Reservierungsstände. `noindex, nofollow` und `no-store` verhindern reguläre Suchindexierung bzw. Cache-Kopien. Der Link ist weitergebbar und bleibt bis zum Löschen der Liste gültig.
+`GET index.php?page=share&id=LISTEN_ID` zeigt ohne Anmeldung genau eine Liste. Die bestehende zufällige 128-Bit-ID ist der Zugang zum geteilten Inhalt, es gibt keine öffentliche Listenübersicht oder zusätzliche JSON-API. Angezeigt werden Listen-/Wunschdaten und der Anzeigename sowie gegebenenfalls der allgemeine Hinweis auf viele Reservierungen. Einzelne Reservierungsstände und Kontodaten bleiben verborgen. `noindex, nofollow` und `no-store` verhindern reguläre Suchindexierung bzw. Cache-Kopien. Der Link ist weitergebbar und bleibt bis zum Löschen der Liste gültig.
 
 Öffentliche Medien benötigen zusätzlich `&share=LISTEN_ID`; der Server prüft, dass Wunsch oder Cover zu genau dieser Liste gehört. `type=preview` und der vollständige `state` bleiben an die Anmeldung gebunden. Änderungen benötigen weiterhin Anmeldung und CSRF. Reservieren führt für Gäste zu `page=login&returnList=LISTEN_ID`; nach Passwort-Login, Registrierung oder Google-Login geht es zur Liste zurück. Eine Reservierung wird erst durch erneuten bewussten Klick ausgeführt. Rücksprünge erlauben ausschließlich gültige Listen-IDs, keine externen URLs.
 

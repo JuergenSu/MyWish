@@ -99,6 +99,7 @@ header("Content-Security-Policy: default-src 'none'; style-src 'self'; img-src '
     <p>Mit diesem Link lässt sich genau diese Liste <strong>ohne Anmeldung</strong> ansehen. Der Link kann weitergegeben werden.</p>
     <p>Zum Reservieren ist eine Anmeldung nötig. Ein Klick auf „Für mich reservieren“ führt ohne Anmeldung zuerst zur Anmeldeseite. Danach geht es zurück zur Liste.</p>
     <p>In der Ansicht ohne Anmeldung sieht niemand, welche Wünsche schon reserviert sind.</p>
+    <p>Ist auf einer Liste schon viel reserviert, erscheint oben „Achtung, auf dieser Liste ist schon viel reserviert.“ Diesen allgemeinen Hinweis sehen alle, auch die Person, der die Liste gehört, und Gäste ohne Anmeldung. Er nennt keine Anzahl oder Namen.</p>
   </section>
 
   <section class="panel guide-section" aria-labelledby="schenken">
@@ -109,8 +110,9 @@ header("Content-Security-Policy: default-src 'none'; style-src 'self'; img-src '
       <li>Tippe auf „Für mich reservieren“. Bei mehreren gewünschten Stücken heißt der Knopf „Eine Einheit reservieren“.</li>
       <li>Unter „Meine Reservierungen“ findest du deine Auswahl wieder.</li>
     </ol>
-    <p>Du reservierst pro Wunsch ein Stück. Andere angemeldete Schenkende sehen, ob noch etwas verfügbar ist. <strong>Die Person, der die Liste gehört, sieht nicht, ob oder wer etwas reserviert hat.</strong> Eigene Wünsche kannst du nicht selbst reservieren.</p>
+    <p>Du reservierst pro Wunsch ein Stück. Andere angemeldete Schenkende sehen, ob noch etwas verfügbar ist. <strong>Die Person, der die Liste gehört, sieht keine einzelnen Reservierungen und nicht, wer reserviert hat.</strong> Sie sieht nur den allgemeinen Hinweis, wenn auf der Liste schon viel reserviert ist. Eigene Wünsche kannst du nicht selbst reservieren.</p>
     <p>Unter „Meine Reservierungen“ stehen deine Wünsche nach beschenkter Person geordnet. Wünsche aus mehreren Listen derselben Person findest du gemeinsam unter ihrem Namen. Über den Namen in der Summenübersicht springst du direkt zur passenden Gruppe.</p>
+    <p>Tippe auf die Überschrift einer Person, um ihre Reservierungen ein- oder auszuklappen. Name und Anzahl bleiben sichtbar. Die Gruppen sind zunächst geöffnet. Das Ein- und Ausklappen funktioniert auch ohne JavaScript.</p>
     <h3>Kategorie wählen</h3>
     <p>Bei jeder Reservierung kannst du „Ostern“, „Geburtstag“, „Weihnachten“ oder „Sonstiges“ wählen. Ohne Auswahl gilt „Sonstiges“, auch bei älteren Reservierungen. Die Kategorie siehst nur du. Sie ist unabhängig vom Anlass der Wunschliste.</p>
     <h3>Schon gekauft?</h3>
