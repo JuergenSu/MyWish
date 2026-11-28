@@ -51,20 +51,26 @@ function wishCard(array $w,array $l,bool $own,bool $reservationPage=false,bool $
 <div class="wish-actions" aria-live="polite">
 <?php if ($guest): ?><p class="field-help">Zum Reservieren bitte anmelden.</p><a class="button primary full" href="<?= e(url('page=login&returnList='.$l['id'])) ?>"><?= icon('heart') ?>Für mich reservieren</a>
 <?php elseif ($own): ?><a class="button secondary full" href="<?= e(url('page=wish&id='.$w['id'])) ?>"><?= icon('edit') ?>Wunsch bearbeiten</a>
+<?php elseif ($reservationPage && ($w['reservedByMe'] ?? false)):
+    $purchasePrice=isset($w['purchasePriceCents']) ? number_format($w['purchasePriceCents']/100,2,',','') : '';
+    $selectedCategory=$w['reservationCategory'] ?? 'Sonstiges';$purchased=$w['isPurchased'] ?? false;
+    if (($GLOBALS['form']['action'] ?? '')==='saveReservationDetails' && ($GLOBALS['form']['id'] ?? '')===$w['id']) {
+        $submitted=$GLOBALS['form'];$purchasePrice=$submitted['purchasePrice'] ?? '';
+        if (in_array($submitted['category'] ?? '',MyWish\App::RESERVATION_CATEGORIES,true)) { $selectedCategory=$submitted['category']; }
+        $purchased=in_array($submitted['purchased'] ?? false,[true,'yes'],true);
+    }
+    $editorId='reservation-editor-'.$w['id']; ?>
+<p class="availability mine"><?= icon('check') ?>Eine Einheit für dich reserviert</p>
+<form id="<?= e($editorId) ?>" method="post" class="reservation-editor"><?= csrf() ?><?= hidden('action','saveReservationDetails') ?><?= hidden('id',$w['id']) ?>
+<div class="reservation-fields"><div class="reservation-category-field"><label for="category-<?= e($w['id']) ?>">Kategorie</label><select id="category-<?= e($w['id']) ?>" name="category"><?php foreach (MyWish\App::RESERVATION_CATEGORIES as $category): ?><option value="<?= e($category) ?>" <?= $selectedCategory===$category ? 'selected' : '' ?>><?= e($category) ?></option><?php endforeach ?></select></div>
+<?= field('purchasePrice','Kaufpreis (€)',$purchasePrice,'text',false,12) ?></div>
+<label class="check"><input type="checkbox" name="purchased" value="yes" <?= $purchased ? 'checked' : '' ?>>Schon gekauft</label>
+<p class="field-help">Preis leer lassen: Wunschpreis verwenden. Diese Angaben siehst nur du.</p>
+</form>
+<div class="reservation-controls"><button type="submit" form="<?= e($editorId) ?>" class="button primary full">Speichern</button>
+<form method="post" class="reservation-form" data-api="<?= e($GLOBALS['base']) ?>/api/index.php"><?= csrf() ?><?= hidden('action','unreserve') ?><?= hidden('id',$w['id']) ?><?= hidden('returnPage','reservations') ?><button type="submit" class="button secondary full">Reservierung freigeben</button></form></div>
 <?php else: ?><p class="availability <?= $w['reservedByMe'] ? 'mine' : ($w['available']>0 ? 'free' : 'taken') ?>"><?= icon($w['reservedByMe'] ? 'check' : 'gift') ?><?= $w['reservedByMe'] ? 'Eine Einheit für dich reserviert' : ($w['available']>0 ? ($w['quantity']>1 ? $w['available'].' von '.$w['quantity'].' verfügbar' : 'Noch zu haben') : 'Bereits reserviert') ?></p>
 <?php if ($w['reservedByMe'] || $w['available']>0): ?><form method="post" class="reservation-form" data-api="<?= e($GLOBALS['base']) ?>/api/index.php"><?= csrf() ?><?= hidden('action',$w['reservedByMe'] ? 'unreserve' : 'reserve') ?><?= hidden('id',$w['id']) ?><?= hidden('returnPage',$reservationPage ? 'reservations' : 'list') ?><button class="button <?= $w['reservedByMe'] ? 'secondary' : 'primary' ?> full"><?= icon($w['reservedByMe'] ? 'check' : 'heart') ?><?= $w['reservedByMe'] ? 'Reservierung freigeben' : ($w['quantity']>1 ? 'Eine Einheit reservieren' : 'Für mich reservieren') ?></button></form><?php else: ?><button class="button secondary full" disabled>Schon verplant</button><?php endif ?><?php endif ?>
-<?php if ($reservationPage && ($w['reservedByMe'] ?? false)):
-    $purchasePrice=isset($w['purchasePriceCents']) ? number_format($w['purchasePriceCents']/100,2,',','') : '';
-    if (($GLOBALS['form']['action'] ?? '')==='saveReservationPrice' && ($GLOBALS['form']['id'] ?? '')===$w['id']) { $purchasePrice=$GLOBALS['form']['purchasePrice'] ?? ''; }
-?>
-<form method="post" class="reservation-category-form stack"><?= csrf() ?><?= hidden('action','saveReservationCategory') ?><?= hidden('id',$w['id']) ?>
-<div class="reservation-category-field"><label for="category-<?= e($w['id']) ?>">Kategorie</label><select id="category-<?= e($w['id']) ?>" name="category"><?php foreach (MyWish\App::RESERVATION_CATEGORIES as $category): ?><option value="<?= e($category) ?>" <?= ($w['reservationCategory'] ?? 'Sonstiges')===$category ? 'selected' : '' ?>><?= e($category) ?></option><?php endforeach ?></select></div><button type="submit" class="button secondary full">Kategorie speichern</button></form>
-<form method="post" class="purchase-status-form stack"><?= csrf() ?><?= hidden('action','setReservationPurchased') ?><?= hidden('id',$w['id']) ?>
-<label class="check"><input type="checkbox" name="purchased" value="yes" <?= ($w['isPurchased'] ?? false) ? 'checked' : '' ?>>Schon gekauft</label><button type="submit" class="button secondary full">Kaufstatus speichern</button></form>
-<form method="post" class="purchase-price-form stack"><?= csrf() ?><?= hidden('action','saveReservationPrice') ?><?= hidden('id',$w['id']) ?>
-<?= field('purchasePrice','Gekauft für (€)',$purchasePrice,'text',false,12) ?>
-<p class="field-help">Preis für das von dir reservierte Stück. Leer lassen, um wieder den Wunschpreis zu verwenden. Nur du siehst deinen Kaufpreis.</p><button class="button secondary full">Kaufpreis speichern</button></form>
-<?php endif ?>
 </div></div></article>
 <?php }
 

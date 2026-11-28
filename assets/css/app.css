@@ -1764,26 +1764,33 @@ legend {
   border-top: 1px solid var(--line);
   padding-top: 20px;
 }
-.reservation-category-form {
-  border-top: 1px solid var(--line);
-  padding-top: 20px;
-  margin-top: 20px;
+.reservation-editor {
+  display: grid;
+  gap: 12px;
+}
+.reservation-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 12px;
 }
 .reservation-category-field {
   display: grid;
+  align-content: start;
   gap: 8px;
 }
-.purchase-price-form {
-  border-top: 1px solid var(--line);
-  padding-top: 20px;
-  margin-top: 20px;
+.reservation-editor .field-help {
+  margin: 0;
+}
+.reservation-controls {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+.reservation-fields select,
+.reservation-fields input {
+  padding-inline: 10px;
 }
 
-.purchase-status-form {
-  border-top: 1px solid var(--line);
-  padding-top: 20px;
-  margin-top: 20px;
-}
 .purchase-badge {
   display: flex;
   align-items: center;
