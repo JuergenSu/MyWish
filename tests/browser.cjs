@@ -498,11 +498,60 @@ fs.mkdirSync(artifacts, { recursive: true });
       .click();
     assert.equal(await gift.locator(".wish-card").count(), 1);
     const estimatedBudget = await gift.locator(".budget-total").innerText();
-    await gift.getByLabel("Gekauft für (€)", { exact: true }).fill("12,34");
+    assert.equal(
+      await gift
+        .getByRole("button", { name: "Speichern", exact: true })
+        .count(),
+      1,
+    );
+    assert.deepEqual(
+      await gift.locator(".wish-card button").allTextContents(),
+      ["Speichern", "Reservierung freigeben"],
+    );
+    await gift.getByLabel("Kaufpreis (€)", { exact: true }).fill("bad");
     await gift
-      .getByRole("button", { name: "Kaufpreis speichern", exact: true })
-      .click();
-    await gift.getByText("Kaufpreis gespeichert.", { exact: true }).waitFor();
+      .getByLabel("Kategorie", { exact: true })
+      .selectOption("Weihnachten");
+    await gift
+      .getByRole("checkbox", { name: "Schon gekauft", exact: true })
+      .check();
+    await gift.getByRole("button", { name: "Speichern", exact: true }).click();
+    await gift
+      .getByText(
+        "Preis bitte z. B. als 39,99 angeben (keine Tausendertrennzeichen).",
+        { exact: true },
+      )
+      .waitFor();
+    assert.equal(
+      await gift.getByLabel("Kaufpreis (€)", { exact: true }).inputValue(),
+      "bad",
+    );
+    assert.equal(
+      await gift.getByLabel("Kategorie", { exact: true }).inputValue(),
+      "Weihnachten",
+    );
+    assert.equal(
+      await gift
+        .getByRole("checkbox", { name: "Schon gekauft", exact: true })
+        .isChecked(),
+      true,
+    );
+    assert.equal(
+      await gift.locator(".budget-total").innerText(),
+      estimatedBudget,
+    );
+    await gift
+      .getByLabel("Kategorie", { exact: true })
+      .selectOption("Sonstiges");
+    await gift
+      .getByRole("checkbox", { name: "Schon gekauft", exact: true })
+      .uncheck();
+
+    await gift.getByLabel("Kaufpreis (€)", { exact: true }).fill("12,34");
+    await gift.getByRole("button", { name: "Speichern", exact: true }).click();
+    await gift
+      .getByText("Reservierung gespeichert.", { exact: true })
+      .waitFor();
     assert.match(
       await gift.locator(".budget-total").innerText(),
       /12,34 € verplant/,
@@ -510,7 +559,11 @@ fs.mkdirSync(artifacts, { recursive: true });
     await gift
       .getByRole("checkbox", { name: "Schon gekauft", exact: true })
       .check();
-    await gift.getByText("Als gekauft markiert.", { exact: true }).waitFor();
+    assert.equal(await gift.locator(".wish-card.is-purchased").count(), 0);
+    await gift.getByRole("button", { name: "Speichern", exact: true }).click();
+    await gift
+      .getByText("Reservierung gespeichert.", { exact: true })
+      .waitFor();
     assert.equal(await gift.locator(".wish-card.is-purchased").count(), 1);
     assert.equal(
       await gift.locator(".purchase-progress").innerText(),
@@ -526,21 +579,24 @@ fs.mkdirSync(artifacts, { recursive: true });
     await gift
       .getByRole("checkbox", { name: "Schon gekauft", exact: true })
       .uncheck();
-    await gift.getByText("Kaufmarkierung entfernt.", { exact: true }).waitFor();
+    await gift.getByRole("button", { name: "Speichern", exact: true }).click();
+    await gift
+      .getByText("Reservierung gespeichert.", { exact: true })
+      .waitFor();
     assert.equal(await gift.locator(".wish-card.is-purchased").count(), 0);
     assert.equal(
       await gift.locator(".purchase-progress").innerText(),
       "0 von 1 schon gekauft",
     );
     assert.equal(
-      await gift.getByLabel("Gekauft für (€)", { exact: true }).inputValue(),
+      await gift.getByLabel("Kaufpreis (€)", { exact: true }).inputValue(),
       "12,34",
     );
-    await gift.getByLabel("Gekauft für (€)", { exact: true }).fill("");
+    await gift.getByLabel("Kaufpreis (€)", { exact: true }).fill("");
+    await gift.getByRole("button", { name: "Speichern", exact: true }).click();
     await gift
-      .getByRole("button", { name: "Kaufpreis speichern", exact: true })
-      .click();
-    await gift.getByText("Kaufpreis gespeichert.", { exact: true }).waitFor();
+      .getByText("Reservierung gespeichert.", { exact: true })
+      .waitFor();
     assert.equal(
       await gift.locator(".budget-total").innerText(),
       estimatedBudget,
@@ -653,7 +709,14 @@ fs.mkdirSync(artifacts, { recursive: true });
       .first()
       .getByRole("checkbox", { name: "Schon gekauft", exact: true })
       .check();
-    await gift.getByText("Als gekauft markiert.", { exact: true }).waitFor();
+    await antoniaGroup
+      .locator(".wish-card")
+      .first()
+      .getByRole("button", { name: "Speichern", exact: true })
+      .click();
+    await gift
+      .getByText("Reservierung gespeichert.", { exact: true })
+      .waitFor();
     assert.equal(await gift.locator(".wish-card.is-purchased").count(), 1);
     assert.deepEqual(
       await gift.locator(".purchase-progress").allTextContents(),
@@ -674,9 +737,11 @@ fs.mkdirSync(artifacts, { recursive: true });
         .getByLabel("Kategorie", { exact: true })
         .selectOption(category);
       await card
-        .getByRole("button", { name: "Kategorie speichern", exact: true })
+        .getByRole("button", { name: "Speichern", exact: true })
         .click();
-      await gift.getByText("Kategorie gespeichert.", { exact: true }).waitFor();
+      await gift
+        .getByText("Reservierung gespeichert.", { exact: true })
+        .waitFor();
       assert.equal(
         await card.getByLabel("Kategorie", { exact: true }).inputValue(),
         category,

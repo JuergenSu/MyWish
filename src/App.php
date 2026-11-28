@@ -297,6 +297,21 @@ final class App
                     $s['wishes']=array_values(array_filter($s['wishes'],fn($r)=>$r['id']!==$id));
                     $s['reservations']=array_values(array_filter($s['reservations'],fn($r)=>$r['wishId']!==$id));
                     return ['listId'=>$w['listId'],'message'=>'Wunsch gelöscht.'];
+                case 'saveReservationDetails':
+                    $w=self::find($s['wishes'],$id);
+                    foreach ($s['reservations'] as &$reservation) {
+                        if ($reservation['wishId']===$id && $reservation['userId']===$uid) {
+                            $category=self::text($in,'category',30);$category=$category==='' ? 'Sonstiges' : $category;
+                            if (!in_array($category,self::RESERVATION_CATEGORIES,true)) { throw new Problem(422,'Bitte Ostern, Geburtstag, Weihnachten oder Sonstiges wählen.'); }
+                            $price=self::money(self::text($in,'purchasePrice',12));
+                            $purchased=array_key_exists('purchased',$in) ? $in['purchased'] : false;
+                            if (!in_array($purchased,[true,false,'yes','no'],true)) { throw new Problem(422,'Bitte einen gültigen Kaufstatus angeben.'); }
+                            $reservation['category']=$category;$reservation['purchasePriceCents']=$price;
+                            $reservation['isPurchased']=$purchased===true || $purchased==='yes';
+                            return ['id'=>$id,'listId'=>$w['listId'],'message'=>'Reservierung gespeichert.'];
+                        }
+                    }
+                    throw new Problem(403,'Du kannst nur deine eigenen Reservierungen bearbeiten.');
                 case 'saveReservationCategory':
                     self::find($s['wishes'],$id);
                     foreach ($s['reservations'] as &$reservation) {

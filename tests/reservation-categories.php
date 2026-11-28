@@ -54,7 +54,27 @@ try {
     $app->act('unreserve',['id'=>$wish]);denied(fn()=>$set($wish,'Ostern'),403);
     $app->act('reserve',['id'=>$wish]);check($app->snapshot()['wishes'][0]['reservationCategory']==='Sonstiges','Freed and newly reserved gift starts in Sonstiges');
     denied(fn()=>$set(str_repeat('0',32),'Ostern'),404);
+    $save=fn(array $fields)=>$app->act('saveReservationDetails',['id'=>$wish]+$fields);
+    $activity=$store->read(fn(&$s)=>$s['settings']['activity']);
+    $save(['category'=>'Weihnachten','purchasePrice'=>'19,99','purchased'=>'yes']);
+    $saved=$app->snapshot()['wishes'][0];
+    check($saved['reservationCategory']==='Weihnachten' && $saved['purchasePriceCents']===1999 && $saved['isPurchased']===true,'One save updates all three reservation fields');
+    check($app->snapshot()['reservationSummary'][0]['categories']['Weihnachten']['totalCents']===2999,'Combined save updates category subtotal');
+    $before=file_get_contents($manifest);
+    foreach ([['category'=>'Invalid'],['purchasePrice'=>'bad'],['purchased'=>'true'],['purchased'=>null],['purchased'=>[]]] as $invalid) {
+        denied(fn()=>$save(array_replace(['category'=>'Geburtstag','purchasePrice'=>'5','purchased'=>false],$invalid)),422);
+        check(file_get_contents($manifest)===$before,'Invalid combined save cannot partially update another field');
+    }
+    $save(['category'=>'Ostern','purchasePrice'=>'0']);$saved=$app->snapshot()['wishes'][0];
+    check($saved['reservationCategory']==='Ostern' && $saved['purchasePriceCents']===0 && $saved['isPurchased']===false,'Unchecked status and explicit zero are saved together');
+    $save([]);$saved=$app->snapshot()['wishes'][0];
+    check($saved['reservationCategory']==='Sonstiges' && $saved['purchasePriceCents']===null && $saved['isPurchased']===false,'Full-form defaults reset all three fields consistently');
+    check($store->read(fn(&$s)=>$s['settings']['activity'])===$activity,'Combined save never emits public activity');
+    $_SESSION=['userId'=>$a,'version'=>3];check($app->snapshot()===$owner && $app->sharedList($list)===$public,'Combined save remains invisible to owner and public');denied(fn()=>$save([]),403);
+    $_SESSION=['userId'=>$c,'version'=>3];$app->act('unreserve',['id'=>$wish]);denied(fn()=>$save([]),403);
+    $_SESSION=['userId'=>$b,'version'=>3];
+    denied(fn()=>$app->act('saveReservationDetails',['id'=>str_repeat('0',32)]),404);
     $state=$store->verify();foreach (['Other','',null,1,[]] as $invalid) { $bad=$state;$bad['reservations'][0]['category']=$invalid;denied(fn()=>Store::validate($bad),503); }
-    $_SESSION=[];denied(fn()=>$set($wish,'Ostern'),401);
+    $_SESSION=[];denied(fn()=>$set($wish,'Ostern'),401);denied(fn()=>$save([]),401);
     echo "OK: $checks reservation category/budget/privacy checks\n";
 } finally { removeTestTree($root); }
