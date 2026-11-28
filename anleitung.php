@@ -111,6 +111,7 @@ header("Content-Security-Policy: default-src 'none'; style-src 'self'; img-src '
     </ol>
     <p>Du reservierst pro Wunsch ein Stück. Andere angemeldete Schenkende sehen, ob noch etwas verfügbar ist. <strong>Die Person, der die Liste gehört, sieht nicht, ob oder wer etwas reserviert hat.</strong> Eigene Wünsche kannst du nicht selbst reservieren.</p>
     <p>Unter „Meine Reservierungen“ stehen deine Wünsche nach beschenkter Person geordnet. Wünsche aus mehreren Listen derselben Person findest du gemeinsam unter ihrem Namen. Über den Namen in der Summenübersicht springst du direkt zur passenden Gruppe.</p>
+    <p>Tippe auf die Überschrift einer Person, um ihre Reservierungen ein- oder auszuklappen. Name und Anzahl bleiben sichtbar. Die Gruppen sind zunächst geöffnet. Das Ein- und Ausklappen funktioniert auch ohne JavaScript.</p>
     <h3>Kategorie wählen</h3>
     <p>Bei jeder Reservierung kannst du „Ostern“, „Geburtstag“, „Weihnachten“ oder „Sonstiges“ wählen. Ohne Auswahl gilt „Sonstiges“, auch bei älteren Reservierungen. Die Kategorie siehst nur du. Sie ist unabhängig vom Anlass der Wunschliste.</p>
     <h3>Schon gekauft?</h3>

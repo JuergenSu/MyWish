@@ -83,7 +83,7 @@ $flash=$_SESSION['flash'] ?? ''; unset($_SESSION['flash']);
 ?>
 <!doctype html>
 <html lang="de">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#635bdb"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="<?= e($siteName) ?>"><title><?= e($pageTitle) ?></title><link rel="icon" href="<?= e($base) ?>/assets/favicon.svg" type="image/svg+xml"><link rel="manifest" href="<?= e($base) ?>/manifest.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="<?= e($base) ?>/assets/icons/apple-touch-icon.png"><link rel="stylesheet" href="<?= e($base) ?>/assets/css/app.css?v=compact-reservations"><script src="<?= e($base) ?>/assets/js/app.js?v=compact-reservations" defer></script><script src="<?= e($base) ?>/assets/js/install.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#635bdb"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="<?= e($siteName) ?>"><title><?= e($pageTitle) ?></title><link rel="icon" href="<?= e($base) ?>/assets/favicon.svg" type="image/svg+xml"><link rel="manifest" href="<?= e($base) ?>/manifest.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="<?= e($base) ?>/assets/icons/apple-touch-icon.png"><link rel="stylesheet" href="<?= e($base) ?>/assets/css/app.css?v=collapsible-reservations"><script src="<?= e($base) ?>/assets/js/app.js?v=compact-reservations" defer></script><script src="<?= e($base) ?>/assets/js/install.js" defer></script></head>
 <body>
 <a class="skip" href="#main">Zum Inhalt</a>
 <?php if ($settings): ?>
@@ -205,8 +205,8 @@ if (in_array($page,['setup','login','register'],true)):
 <?php endforeach ?></article><?php endforeach ?></div></section>
 <?php endif ?>
 <?php foreach ($recipientGroups as $ownerId=>$group): ?>
-<section class="recipient-reservations" data-owner-id="<?= e($ownerId) ?>" aria-labelledby="recipient-<?= e($ownerId) ?>"><div class="section-heading"><h2 id="recipient-<?= e($ownerId) ?>">Für <?= e($group['name']) ?></h2><span class="muted"><?= count($group['wishes']) ?> <?= count($group['wishes'])===1 ? 'Reservierung' : 'Reservierungen' ?></span></div>
-<div class="card-grid wish-grid"><?php foreach ($group['wishes'] as $w) { $l=App::find($state['lists'],$w['listId']);wishCard($w,$l,false,true); } ?></div></section>
+<details class="recipient-reservations" data-owner-id="<?= e($ownerId) ?>" aria-labelledby="recipient-heading-<?= e($ownerId) ?>" open><summary><h2 id="recipient-heading-<?= e($ownerId) ?>">Für <?= e($group['name']) ?></h2><span class="muted"><?= count($group['wishes']) ?> <?= count($group['wishes'])===1 ? 'Reservierung' : 'Reservierungen' ?></span></summary>
+<div id="recipient-<?= e($ownerId) ?>" class="card-grid wish-grid"><?php foreach ($group['wishes'] as $w) { $l=App::find($state['lists'],$w['listId']);wishCard($w,$l,false,true); } ?></div></details>
 <?php endforeach ?>
 <?php if (!$reserved): ?><?= emptyState('Noch kein Geschenk ins Auge gefasst?','Entdecke die Listen deiner Lieblingsmenschen und reserviere eine Einheit eines Wunsches.') ?><div class="center"><a class="button primary" href="<?= e(url()) ?>">Wunschlisten entdecken</a></div><?php endif ?>
 <?php elseif ($page==='account' && $state): ?>
