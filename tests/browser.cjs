@@ -660,6 +660,46 @@ fs.mkdirSync(artifacts, { recursive: true });
       ["1 von 2 schon gekauft", "0 von 1 schon gekauft"],
     );
     await audit(gift, "reservation-grouped");
+    for (const [group, index, category] of [
+      [antoniaGroup, 0, "Weihnachten"],
+      [antoniaGroup, 1, "Geburtstag"],
+      [beaGroup, 0, "Ostern"],
+    ]) {
+      const card = group.locator(".wish-card").nth(index);
+      assert.equal(
+        await card.getByLabel("Kategorie", { exact: true }).inputValue(),
+        "Sonstiges",
+      );
+      await card
+        .getByLabel("Kategorie", { exact: true })
+        .selectOption(category);
+      await card
+        .getByRole("button", { name: "Kategorie speichern", exact: true })
+        .click();
+      await gift.getByText("Kategorie gespeichert.", { exact: true }).waitFor();
+      assert.equal(
+        await card.getByLabel("Kategorie", { exact: true }).inputValue(),
+        category,
+      );
+    }
+    assert.deepEqual(
+      await gift.locator(".budget-category h4").allTextContents(),
+      ["Geburtstag", "Weihnachten", "Ostern"],
+    );
+    assert.deepEqual(await gift.locator(".budget-total").allTextContents(), [
+      "30,00 € verplant",
+      "20,00 € verplant",
+      "15,00 € verplant",
+    ]);
+    assert.deepEqual(
+      await gift.locator(".purchase-progress").allTextContents(),
+      [
+        "0 von 1 schon gekauft",
+        "1 von 1 schon gekauft",
+        "0 von 1 schon gekauft",
+      ],
+    );
+    await audit(gift, "reservation-categories");
     await page.goto(base);
     const activity = page.locator(".recent-activity");
     assert.match(await activity.innerText(), /Bea/);

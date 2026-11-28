@@ -165,6 +165,10 @@ Lokale Messung vom 14. November 2026 mit PHP 8.4.24:
 
 Das sind Messwerte für diesen synthetischen Bestand mit warmem Dateicache, keine Garantie für eine vollständige Seitenladezeit auf beliebigem Hosting. Konto-/Listen-/Wunschmetadaten werden weiterhin als Sammlungen geladen, Schreibvorgänge serialisiert. Für eine kleine private Installation wird vor allem der teure globale Bildzugriff entfernt. Bei sehr vielen Metadatensätzen wäre eine weitere Aufteilung nach Liste oder eine Datenbank ein separater Ausbau.
 
+## Reservierungskategorien
+
+Reservierungen können additiv das private Feld `category` mit Ostern, Geburtstag, Weihnachten oder Sonstiges enthalten. Fehlende Felder in bestehenden Daten werden beim Lesen als Sonstiges behandelt, ohne die Daten umzuschreiben. Das Feld liegt zusammen mit Kaufpreis und Kaufstatus in der Reservierungssammlung und ist damit bereits Bestandteil jeder Sicherung. Es ist kein Migrationslauf nötig.
+
 ## Besuchsstand und Änderungsübersicht
 
 Schema 4 erlaubt additiv `settings.activity` mit einem monotonen `sequence`-Zähler und höchstens 500 Ereignissen (`sequence`, `actorId`, `type`, `at`). Die Ereignisse werden nach Bildkonvertierung aus den Änderungen an öffentlichen Datensätzen abgeleitet und gemeinsam mit ihnen über denselben Manifestwechsel aktiviert. Migrationen erzeugen keine Ereignisse. Unveränderte Inhalte mit neuem updatedAt erzeugen ebenfalls keine Meldung. Private Reservierungs-, Kauf-, Rollen- und Sitzungsänderungen werden nicht protokolliert. Ereignisse enthalten keine Objektinhalte oder Bildbytes.

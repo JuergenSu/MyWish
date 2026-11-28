@@ -11,7 +11,7 @@ Eine kleine, selbst gehostete Wunschwelt für Freunde und Familie. PHP 8.2+, HTM
 - Der Eigentümer erhält **keine Reservierungsinformationen**, weder in HTML noch in JSON. Es gibt keine privaten Listen oder Kinderprofile. Konten mit `isAdmin: true` können zusätzlich eine reine Statistikseite ansehen. Das V1-Grundmodell aus [Epic #3](https://github.com/JuergenSu/MyWish/issues/3) wird um öffentliche Teilen-Links ergänzt.
 - Listen mit Anlass, Datum, Beschreibung und Cover; Wünsche mit optionalem Shoplink, Bild, EUR-Preis und Menge (1–99).
 - Optionaler Produktimport mit Vorschau (OpenGraph, Twitter Cards, JSON-LD, Produktgalerien und Amazon.de-Produktfelder). Eingaben prüfen und explizit speichern; ein manueller Wunsch funktioniert immer.
-- Meine Reservierungen nach beschenkter Person gruppiert, mit privatem Haken „Schon gekauft“, privaten Kaufpreisen und einer Budgetübersicht pro beschenkter Person (Kaufpreis, sonst Wunschpreis; fehlende Preise werden gekennzeichnet), Suche über Listen/Anzeigenamen, mobile Oberfläche und Formulare ohne JavaScript.
+- Meine Reservierungen nach beschenkter Person gruppiert, mit privatem Haken „Schon gekauft“, privaten Kaufpreisen und Kategorien (Ostern, Geburtstag, Weihnachten, Sonstiges; ohne Auswahl Sonstiges). Die Budgetübersicht zeigt Beträge und Kaufzähler pro Person getrennt nach Kategorie (Kaufpreis, sonst Wunschpreis; fehlende Preise werden gekennzeichnet). Suche über Listen/Anzeigenamen, mobile Oberfläche und Formulare ohne JavaScript.
 - Installationsbanner auf dem Handy: Android-Installationsdialog oder iPhone-Anleitung für den Home-Bildschirm; App-Manifest und lokale Icons, auch im Unterordner.
 
 ## Neu seit deinem letzten Besuch

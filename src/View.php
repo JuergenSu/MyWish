@@ -57,6 +57,8 @@ function wishCard(array $w,array $l,bool $own,bool $reservationPage=false,bool $
     $purchasePrice=isset($w['purchasePriceCents']) ? number_format($w['purchasePriceCents']/100,2,',','') : '';
     if (($GLOBALS['form']['action'] ?? '')==='saveReservationPrice' && ($GLOBALS['form']['id'] ?? '')===$w['id']) { $purchasePrice=$GLOBALS['form']['purchasePrice'] ?? ''; }
 ?>
+<form method="post" class="reservation-category-form stack"><?= csrf() ?><?= hidden('action','saveReservationCategory') ?><?= hidden('id',$w['id']) ?>
+<div class="reservation-category-field"><label for="category-<?= e($w['id']) ?>">Kategorie</label><select id="category-<?= e($w['id']) ?>" name="category"><?php foreach (MyWish\App::RESERVATION_CATEGORIES as $category): ?><option value="<?= e($category) ?>" <?= ($w['reservationCategory'] ?? 'Sonstiges')===$category ? 'selected' : '' ?>><?= e($category) ?></option><?php endforeach ?></select></div><button type="submit" class="button secondary full">Kategorie speichern</button></form>
 <form method="post" class="purchase-status-form stack"><?= csrf() ?><?= hidden('action','setReservationPurchased') ?><?= hidden('id',$w['id']) ?>
 <label class="check"><input type="checkbox" name="purchased" value="yes" <?= ($w['isPurchased'] ?? false) ? 'checked' : '' ?>>Schon gekauft</label><button type="submit" class="button secondary full">Kaufstatus speichern</button></form>
 <form method="post" class="purchase-price-form stack"><?= csrf() ?><?= hidden('action','saveReservationPrice') ?><?= hidden('id',$w['id']) ?>

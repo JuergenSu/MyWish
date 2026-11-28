@@ -1757,6 +1757,22 @@ legend {
   font-weight: 700;
   margin-block: 12px;
 }
+.budget-category {
+  margin-top: 20px;
+}
+.budget-category + .budget-category {
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+}
+.reservation-category-form {
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+  margin-top: 20px;
+}
+.reservation-category-field {
+  display: grid;
+  gap: 8px;
+}
 .purchase-price-form {
   border-top: 1px solid var(--line);
   padding-top: 20px;

@@ -32,6 +32,7 @@ try {
     $app->act('setReservationPurchased',['id'=>$wish,'purchased'=>true]);
     check($app->snapshot()['wishes'][0]['isPurchased']===true && $app->snapshot()['wishes'][0]['purchasePriceCents']===1234,'Purchase status is explicit and preserves price');
     $budget[0]['purchasedCount']=1;
+    $budget[0]['categories']['Sonstiges']['purchasedCount']=1;
     check($app->snapshot()['reservationSummary']===$budget,'Purchase check updates count without changing planned amounts');
     check((new App(new Store($root)))->snapshot()['wishes'][0]['isPurchased']===true,'Purchase check survives reopening storage');
     $statusManifest=file_get_contents($store->dataDirectory().'/manifest.json');
