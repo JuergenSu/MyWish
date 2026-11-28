@@ -606,6 +606,11 @@ summary:focus-visible {
 .notice > .icon {
   margin-top: 1px;
 }
+.reservation-notice {
+  color: #735015;
+  background: #fff7e5;
+  border-color: #eddbaf;
+}
 .panel {
   background: #fff;
   border: 1px solid var(--line);

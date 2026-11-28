@@ -2,12 +2,12 @@
 
 ## Vertrauensgrenzen
 
-Ein normales Konto ist entweder Eigentümer oder Schenkender im Kontext einer Liste. Alle eingeloggten Konten sehen jede Liste. Über den Teilen-Link mit zufälliger 128-Bit-Listen-ID kann jeder genau diese Liste lesen. Die ID ist hier der weitergebbare Lesezugang; keine separaten Rollen/ACLs/Share-Tokens. Es gibt keine anonyme Auflistung aller Listen und keine öffentliche Änderung. Reservierungsstände bleiben anonym verborgen, damit auch Eigentümer über ein privates Browserfenster keine Überraschung erfahren. Der Betreiber und sein Hosting haben Dateizugriff und sind vertrauenswürdig. Fremde Shops, Formulareingaben und Uploads sind nicht vertrauenswürdig. Eine frische Installation wird vor öffentlich möglicher Fremdeinrichtung per Hosting-Zugriffsschutz gesichert.
+Ein normales Konto ist entweder Eigentümer oder Schenkender im Kontext einer Liste. Alle eingeloggten Konten sehen jede Liste. Über den Teilen-Link mit zufälliger 128-Bit-Listen-ID kann jeder genau diese Liste lesen. Die ID ist hier der weitergebbare Lesezugang; keine separaten Rollen/ACLs/Share-Tokens. Es gibt keine anonyme Auflistung aller Listen und keine öffentliche Änderung. Einzelne Reservierungen bleiben für Eigentümer und Gäste verborgen. Als ausdrücklich sichtbare Ausnahme erhalten alle den allgemeinen Listenhinweis, wenn mehr als die Hälfte der gewünschten Stücke reserviert ist; dadurch wird diese Schwelleninformation bewusst offengelegt. Der Betreiber und sein Hosting haben Dateizugriff und sind vertrauenswürdig. Fremde Shops, Formulareingaben und Uploads sind nicht vertrauenswürdig. Eine frische Installation wird vor öffentlich möglicher Fremdeinrichtung per Hosting-Zugriffsschutz gesichert.
 
 | Bedrohung | Umsetzung / Prüfung |
 |---|---|
 | IDOR / Rechteausweitung | Owner-ID kommt ausschließlich aus Session. CRUD und Reservierungen prüfen Eigentümer serverseitig unter Lock. Fremde Mutationen 403. HTTP-Tests. |
-| Überraschung verraten | Snapshot baut Wunschfelder je Eigentümer auf. Keine Reservierungsfelder oder fremden Nutzer-IDs/Namen für Eigentümer, keine statusabhängigen Löschmeldungen. Vergleich identischer Owner-Snapshots nach Reserve/Unreserve. |
+| Einzelne Reservierungen verraten | Snapshot baut Wunschfelder je Eigentümer auf. Keine Reservierungsfelder an eigenen Wünschen oder fremden Nutzer-IDs/Namen für Eigentümer. Nur das boolesche Listenfeld hasManyReservations darf beim Überschreiten der Hälfte wechseln. Tests prüfen diese Ausnahme und ansonsten unveränderte Eigentümer-/Gastdaten. |
 | Gleichzeitige Reservierung | Gemeinsamer Lock für Lesen, Mengenprüfung und Schreiben; atomarer Rename. Test: zehn unabhängige Sessions, genau ein bzw. drei Gewinner. |
 | CSRF / Session Fixation | Zufallstoken, POST, HttpOnly/SameSite-Cookie, Secure bei HTTPS, strict_mode und ID-Wechsel bei Login/Logout/Passwortwechsel. 14 Tage Inaktivitätslimit mit erneuertem Cookie, geschützten Sitzungsdateien und Sitzungsversion. |
 | Brute Force | Zehn erfolglose Logins je gehashter IP in 15 Minuten, 30 Registrierungen separat; Ablaufbereinigung bei Login/Registrierung. Keine Passwort-/Tokenlogs. NAT kann mehrere Nutzer betreffen. |
@@ -35,7 +35,7 @@ Keine Access-/Refresh-/ID-Tokens in Storage oder Logs; nur ein geschützter öff
 
 Die manuelle Google-Bildersuche wurde entfernt. Eingegebene direkte Bildadressen durchlaufen weiterhin dieselben öffentlichen DNS-/Redirect-/MIME-/Größenprüfungen wie Shop-Bilder und werden nur lokal ausgeliefert.
 
-Öffentliche Listen/Medien tragen weder Reservierungsfelder noch Konto-/Sitzungsdaten im Inhalt. Bilder mit `share` müssen zur zugehörigen Liste gehören; Sitzungs-Vorschauen bleiben geschützt. Rücksprünge nach Anmeldung akzeptieren nur Listen-IDs. Der öffentliche Link kann weitergegeben werden; kein Widerruf einzelner Empfänger ohne Löschen der Liste. Die Ansicht wird nicht im Offline-Cache gespeichert und ist für Suchmaschinen mit `noindex, nofollow` markiert.
+Öffentliche Listen enthalten außer dem allgemeinen booleschen Schwellenhinweis keine Reservierungsdetails oder Konto-/Sitzungsdaten. Medien enthalten weiterhin keine Reservierungsinformationen. Bilder mit `share` müssen zur zugehörigen Liste gehören; Sitzungs-Vorschauen bleiben geschützt. Rücksprünge nach Anmeldung akzeptieren nur Listen-IDs. Der öffentliche Link kann weitergegeben werden; kein Widerruf einzelner Empfänger ohne Löschen der Liste. Die Ansicht wird nicht im Offline-Cache gespeichert und ist für Suchmaschinen mit `noindex, nofollow` markiert.
 
 
 ## Dauerhafte Anmeldung

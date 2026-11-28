@@ -104,16 +104,31 @@ final class App
         $s['wishes'] = array_values(array_filter($s['wishes'], fn($w)=>$w['listId']!==$id));
         $s['lists'] = array_values(array_filter($s['lists'], fn($l)=>$l['id']!==$id));
     }
+    private static function reservationNotices(array $state): array
+    {
+        $wishLists=[];$quantities=[];$reserved=[];$notices=[];
+        foreach ($state['wishes'] as $wish) {
+            $listId=$wish['listId'];$wishLists[$wish['id']]=$listId;
+            $quantities[$listId]=($quantities[$listId] ?? 0)+$wish['quantity'];
+        }
+        foreach ($state['reservations'] as $reservation) {
+            $listId=$wishLists[$reservation['wishId']] ?? null;
+            if ($listId!==null) { $reserved[$listId]=($reserved[$listId] ?? 0)+1; }
+        }
+        foreach ($quantities as $listId=>$quantity) { $notices[$listId]=2*($reserved[$listId] ?? 0)>$quantity; }
+        return $notices;
+    }
     public function snapshot(): array
     {
         return $this->store->read(function (&$s) {
             if (!$s['settings']) { return ['installed'=>false]; }
             $u = self::user($s);
-            $lists = [];
+            $lists = [];$notices=self::reservationNotices($s);
             foreach ($s['lists'] as $l) {
                 $owner = self::find($s['users'], $l['ownerUserId']);
                 $l['ownerName'] = $owner['name'];
                 $l['wishCount'] = count(array_filter($s['wishes'], fn($w)=>$w['listId']===$l['id']));
+                $l['hasManyReservations']=$notices[$l['id']] ?? false;
                 if (isset($l['image']['sourceUrl'])) { $l['imageSourceUrl']=$l['image']['sourceUrl']; }
                 $l['image'] = $l['image'] !== null;
                 $lists[] = $l;
@@ -189,6 +204,7 @@ final class App
             $public=array_intersect_key($list,array_flip(['id','name','description','occasion','eventDate','cover']));
             $public['ownerName']=$owner['name'];
             $public['image']=$list['image']!==null;
+            $public['hasManyReservations']=self::reservationNotices($s)[$id] ?? false;
             $wishes=[];
             foreach ($s['wishes'] as $wish) {
                 if ($wish['listId']!==$id) { continue; }
@@ -355,7 +371,7 @@ final class App
                         if (!$mine) { throw new Problem(403,'Du kannst nur eigene Reservierungen freigeben.'); }
                         $s['reservations']=array_values(array_filter($s['reservations'],fn($r)=>!($r['wishId']===$id && $r['userId']===$uid)));
                     }
-                    return ['listId'=>$w['listId'],'available'=>$w['quantity']-count($rs)+($action==='reserve' ? -1 : 1),'reservedByMe'=>$action==='reserve','message'=>$action==='reserve' ? 'Eine Einheit ist für dich reserviert. Dies löst keine Bestellung aus.' : 'Reservierung freigegeben.'];
+                    return ['listId'=>$w['listId'],'available'=>$w['quantity']-count($rs)+($action==='reserve' ? -1 : 1),'reservedByMe'=>$action==='reserve','hasManyReservations'=>self::reservationNotices($s)[$l['id']] ?? false,'message'=>$action==='reserve' ? 'Eine Einheit ist für dich reserviert. Dies löst keine Bestellung aus.' : 'Reservierung freigegeben.'];
                 default: throw new Problem(404,'Diese Aktion gibt es nicht.');
             }
         });

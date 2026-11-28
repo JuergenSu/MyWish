@@ -1,0 +1,51 @@
+<?php
+declare(strict_types=1);
+require dirname(__DIR__).'/src/Store.php';
+require dirname(__DIR__).'/src/App.php';
+require __DIR__.'/fixtures/legacy-state.php';
+require __DIR__.'/fixtures/storage-helpers.php';
+use MyWish\{Store,App};
+$checks=0;
+function check(bool $ok,string $label): void { global $checks;if (!$ok) { throw new RuntimeException($label); }$checks++; }
+$root=sys_get_temp_dir().'/mywish-notice-'.bin2hex(random_bytes(8));mkdir($root,0700);
+try {
+    file_put_contents($root.'/state.php',Store::GUARD.json_encode(legacyState(3)));
+    $store=new Store($root);$app=new App($store);$store->verify();
+    $a=str_repeat('a',32);$b=str_repeat('b',32);$c=str_repeat('c',32);$list=str_repeat('d',32);$empty=str_repeat('e',32);$wish=str_repeat('f',32);$second=str_repeat('1',32);
+    $notice=fn()=>$app->sharedList($list)['list']['hasManyReservations'];
+    $_SESSION=['userId'=>$a,'version'=>3];$ownerBefore=$app->snapshot();$publicBefore=$app->sharedList($list);
+    check($notice()===false,'One of six desired units does not trigger notice');
+    check($app->sharedList($empty)['list']['hasManyReservations']===false,'Empty list never triggers notice');
+    $_SESSION=['userId'=>$c,'version'=>3];$app->act('reserve',['id'=>$wish]);
+    check(!$notice(),'Two reserved units out of six stay below threshold');
+    $_SESSION=['userId'=>$b,'version'=>3];$app->act('reserve',['id'=>$second]);
+    check(!$notice(),'Exactly half of desired units never triggers notice, even though both wishes have reservations');
+    $_SESSION=['userId'=>$c,'version'=>3];$result=$app->act('reserve',['id'=>$second]);
+    check($notice()===true,'More than half triggers the public boolean');
+    check($result['hasManyReservations']===true,'Reservation response carries the new threshold state');
+    check(App::find($app->snapshot()['lists'],$list)['hasManyReservations']===true,'Giver receives the same list-level notice');
+    $app->act('saveReservationDetails',['id'=>$second,'category'=>'Ostern','purchasePrice'=>'0','purchased'=>true]);
+    check($notice()===true,'Purchase status, price and category never affect reserved share');
+    $_SESSION=['userId'=>$a,'version'=>3];$ownerAfter=$app->snapshot();$publicAfter=$app->sharedList($list);
+    check(App::find($ownerAfter['lists'],$list)['hasManyReservations']===true,'Owner receives the notice too');
+    check($ownerAfter['wishes']===$ownerBefore['wishes'] && $publicAfter['wishes']===$publicBefore['wishes'],'No individual reserved wish is exposed to owner or guests');
+    foreach ($ownerAfter['lists'] as &$row) { $row['hasManyReservations']=false; }unset($row);
+    $publicAfter['list']['hasManyReservations']=false;
+    check($ownerAfter===$ownerBefore && $publicAfter===$publicBefore,'Threshold boolean is the only new public reservation information');
+    check($app->sharedList($empty)['list']['hasManyReservations']===false,'Reservations from another list are never included');
+    $extra=$app->act('saveWish',['listId'=>$list,'title'=>'Zusätzlich','quantity'=>'2'])['id'];
+    check(!$notice(),'Adding desired units recalculates threshold; four of eight is exactly half');
+    $app->act('deleteWish',['id'=>$extra,'confirm'=>'yes']);check($notice(),'Removing unreserved units recalculates threshold');
+    $_SESSION=['userId'=>$c,'version'=>3];$result=$app->act('unreserve',['id'=>$second]);check(!$notice(),'Releasing a unit removes notice at exactly half');
+    check($result['hasManyReservations']===false,'Release response carries the cleared threshold state');
+    $app->act('reserve',['id'=>$second]);check($notice(),'Reserving again restores notice');
+    $_SESSION=['userId'=>$a,'version'=>3];
+    $app->act('saveWish',['id'=>$wish,'listId'=>$list,'title'=>'Geänderte Menge','quantity'=>'4']);
+    check(!$notice(),'Quantity change resets reservations and recalculates notice');
+    $single=$app->act('saveList',['name'=>'Ein Wunsch','occasion'=>'Anderes'])['id'];
+    $singleWish=$app->act('saveWish',['listId'=>$single,'title'=>'Ein Stück'])['id'];
+    $_SESSION=['userId'=>$b,'version'=>3];$app->act('reserve',['id'=>$singleWish]);
+    check($app->sharedList($single)['list']['hasManyReservations']===true,'A fully reserved single-unit list triggers notice');
+    check($app->sharedList($single)['wishes'][0]['quantity']===1 && !isset($app->sharedList($single)['wishes'][0]['reservedByMe']),'Public individual wish fields remain unchanged');
+    echo "OK: $checks reservation threshold/privacy checks\n";
+} finally { removeTestTree($root); }

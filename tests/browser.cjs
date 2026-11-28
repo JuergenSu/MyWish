@@ -780,6 +780,36 @@ fs.mkdirSync(artifacts, { recursive: true });
       await page.locator(".recent-activity").innerText(),
       /keine neuen Änderungen/,
     );
+    const publicNoticeContext = await browser.newContext();
+    const publicNoticePage = await publicNoticeContext.newPage();
+    for (const [viewer, path, role] of [
+      [page, "?page=list&id=" + firstList.id, "owner"],
+      [gift, "?page=list&id=" + firstList.id, "giver"],
+      [publicNoticePage, "?page=share&id=" + firstList.id, "guest"],
+    ]) {
+      await viewer.goto(base + path);
+      const notice = viewer.locator(".reservation-notice");
+      assert.equal(
+        await notice.innerText(),
+        "Achtung, auf dieser Liste ist schon viel reserviert.",
+      );
+      assert.doesNotMatch(await notice.innerText(), /[0-9%]/);
+      if (role !== "giver")
+        assert.equal(
+          await viewer.locator(".wish-card .availability").count(),
+          0,
+        );
+      await audit(viewer, "reservation-notice-" + role);
+    }
+    await gift
+      .getByRole("button", { name: "Reservierung freigeben", exact: true })
+      .click();
+    await gift.locator(".reservation-notice").waitFor({ state: "detached" });
+    await gift
+      .getByRole("button", { name: "Für mich reservieren", exact: true })
+      .click();
+    await gift.locator(".reservation-notice").waitFor({ state: "visible" });
+    await publicNoticeContext.close();
     await recipient.close();
     console.log(
       `OK: no-JS setup/CRUD/8 MB upload, public sharing/native/copy/login return, reservation flow, ${audits} axe/overflow audits, keyboard skip link, local resources`,
