@@ -65,6 +65,8 @@ Kaufpreise gehören zum Reservierungsdatensatz und werden ausschließlich über 
 
 Der Kaufstatus `isPurchased` ist ebenfalls privat und wird unabhängig vom Preis gespeichert. Die Änderung prüft dieselbe aktuelle Reservierungs-User-ID unter Transaktionssperre und erfordert POST sowie CSRF. Direkte Preisänderungen setzen oder löschen den Status nicht. Auch Admins erhalten keine fremden Kaufmarkierungen.
 
+Die optionale Reservierungskategorie ist ebenfalls privat. Ändern kann sie ausschließlich der reservierende Nutzer per POST mit CSRF unter Transaktionssperre. Eigentümer, andere Schenkende, öffentliche Ansichten und Admin-Statistiken erhalten weder fremde Kategorien noch deren Teilsummen. Kategorieänderungen erzeugen keine öffentlichen Aktivitätsereignisse.
+
 ## Änderungen seit dem letzten Besuch
 
 Die angemeldete Startseite zeigt ausschließlich öffentliche Inhaltsänderungen und neue Konten mit Anzeigenamen, ohne E-Mail-/Provider-/Rolleninformationen. Eigene Aktionen werden ausgeblendet. Das begrenzte Änderungsprotokoll wird aus dem validierten Datenstand erzeugt und im selben atomaren Commit gespeichert. Reservierungen, Kaufpreise und Kaufstatus können den öffentlichen Sequenzzähler nicht erhöhen. Cursorwerte sind nur im eigenen Benutzer-Datensatz gespeichert und werden im öffentlichen Benutzer-Snapshot nicht ausgegeben. Hintergrund-APIs und die Admin-Statistik aktualisieren sie nicht. Aktive Ereignisse gelöschter Nutzer werden entfernt; Sicherungen behalten ihre bisherige Aufbewahrung.

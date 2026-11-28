@@ -143,6 +143,10 @@ final class Store
                     $allowed[]='isPurchased';
                     if (!is_bool($row['isPurchased'])) { throw new Problem(503,'Ungültiger Kaufstatus in einer Reservierung.'); }
                 }
+                if ($key==='reservations' && array_key_exists('category',$row)) {
+                    $allowed[]='category';
+                    if (!in_array($row['category'],['Ostern','Geburtstag','Weihnachten','Sonstiges'],true)) { throw new Problem(503,'Ungültige Kategorie in einer Reservierung.'); }
+                }
                 self::keys($row,$allowed);
                 if ($key==='users' && array_key_exists('isAdmin',$row) && !is_bool($row['isAdmin'])) { throw new Problem(503,'Ungültiges Admin-Flag.'); }
                 foreach (['id','ownerUserId','listId','wishId','userId'] as $field) {

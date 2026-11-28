@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
                 'saveList'=>'page=list&id='.$result['id'],
                 'saveWish','deleteWish','reserve','unreserve'=>'page=list&id='.$result['listId'],
                 'saveReservationPrice'=>'page=reservations',
-                'setReservationPurchased'=>'page=reservations#reservation-'.$result['id'],
+                'setReservationPurchased','saveReservationCategory'=>'page=reservations#reservation-'.$result['id'],
                 'account','unlinkGoogle'=>'page=account',
                 default=>'',
             };
@@ -83,7 +83,7 @@ $flash=$_SESSION['flash'] ?? ''; unset($_SESSION['flash']);
 ?>
 <!doctype html>
 <html lang="de">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#635bdb"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="<?= e($siteName) ?>"><title><?= e($pageTitle) ?></title><link rel="icon" href="<?= e($base) ?>/assets/favicon.svg" type="image/svg+xml"><link rel="manifest" href="<?= e($base) ?>/manifest.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="<?= e($base) ?>/assets/icons/apple-touch-icon.png"><link rel="stylesheet" href="<?= e($base) ?>/assets/css/app.css?v=recent-activity"><script src="<?= e($base) ?>/assets/js/app.js?v=reservation-purchased" defer></script><script src="<?= e($base) ?>/assets/js/install.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#635bdb"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="<?= e($siteName) ?>"><title><?= e($pageTitle) ?></title><link rel="icon" href="<?= e($base) ?>/assets/favicon.svg" type="image/svg+xml"><link rel="manifest" href="<?= e($base) ?>/manifest.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="<?= e($base) ?>/assets/icons/apple-touch-icon.png"><link rel="stylesheet" href="<?= e($base) ?>/assets/css/app.css?v=reservation-categories"><script src="<?= e($base) ?>/assets/js/app.js?v=reservation-purchased" defer></script><script src="<?= e($base) ?>/assets/js/install.js" defer></script></head>
 <body>
 <a class="skip" href="#main">Zum Inhalt</a>
 <?php if ($settings): ?>
@@ -198,8 +198,11 @@ if (in_array($page,['setup','login','register'],true)):
     } ?>
 <div class="page-heading"><div><span class="eyebrow">VORFREUDE VERSCHENKEN</span><h1>Meine Reservierungen</h1><p class="muted">Deine kleinen Geheimnisse. Eine Reservierung löst keine Bestellung aus.</p></div><span class="round-emblem"><?= icon('heart') ?></span></div>
 <?php if ($reserved): ?>
-<section class="reservation-budget" aria-labelledby="budget-heading"><h2 id="budget-heading">Für wen habe ich wie viel verplant?</h2><p class="muted">Dein Kaufpreis zählt, sonst der Preis aus dem Wunsch. Pro Reservierung wird ein Stück gerechnet. Nur du siehst diese Übersicht.</p>
-<div class="card-grid"><?php foreach ($state['reservationSummary'] as $person): ?><article class="panel budget-person" data-owner-id="<?= e($person['ownerUserId']) ?>"><h3><a href="#recipient-<?= e($person['ownerUserId']) ?>">Für <?= e($person['ownerName']) ?></a></h3><p class="budget-total"><?= e(number_format($person['totalCents']/100,2,',','.')) ?> € verplant</p><p><?= $person['reservationCount'] ?> <?= $person['reservationCount']===1 ? 'Reservierung' : 'Reservierungen' ?><?php if ($person['unpricedCount']): ?> · <?= $person['unpricedCount'] ?> ohne Preis, noch nicht eingerechnet<?php endif ?></p><p class="purchase-progress"><?= $person['purchasedCount'] ?> von <?= $person['reservationCount'] ?> schon gekauft</p></article><?php endforeach ?></div></section>
+<section class="reservation-budget" aria-labelledby="budget-heading"><h2 id="budget-heading">Für wen habe ich je Kategorie wie viel verplant?</h2><p class="muted">Dein Kaufpreis zählt, sonst der Preis aus dem Wunsch. Pro Reservierung wird ein Stück gerechnet. Ohne Auswahl gilt „Sonstiges“. Nur du siehst diese Übersicht.</p>
+<div class="card-grid"><?php foreach ($state['reservationSummary'] as $person): ?><article class="panel budget-person" data-owner-id="<?= e($person['ownerUserId']) ?>"><h3><a href="#recipient-<?= e($person['ownerUserId']) ?>">Für <?= e($person['ownerName']) ?></a></h3>
+<?php foreach (App::RESERVATION_CATEGORIES as $category): if (!isset($person['categories'][$category])) { continue; } $budget=$person['categories'][$category]; ?>
+<section class="budget-category" data-category="<?= e($category) ?>"><h4><?= e($category) ?></h4><p class="budget-total"><?= e(number_format($budget['totalCents']/100,2,',','.')) ?> € verplant</p><p><?= $budget['reservationCount'] ?> <?= $budget['reservationCount']===1 ? 'Reservierung' : 'Reservierungen' ?><?php if ($budget['unpricedCount']): ?> · <?= $budget['unpricedCount'] ?> ohne Preis, noch nicht eingerechnet<?php endif ?></p><p class="purchase-progress"><?= $budget['purchasedCount'] ?> von <?= $budget['reservationCount'] ?> schon gekauft</p></section>
+<?php endforeach ?></article><?php endforeach ?></div></section>
 <?php endif ?>
 <?php foreach ($recipientGroups as $ownerId=>$group): ?>
 <section class="recipient-reservations" data-owner-id="<?= e($ownerId) ?>" aria-labelledby="recipient-<?= e($ownerId) ?>"><div class="section-heading"><h2 id="recipient-<?= e($ownerId) ?>">Für <?= e($group['name']) ?></h2><span class="muted"><?= count($group['wishes']) ?> <?= count($group['wishes'])===1 ? 'Reservierung' : 'Reservierungen' ?></span></div>

@@ -19,6 +19,7 @@ jobs:
       - run: php tests/unit.php
       - run: php tests/admin.php
       - run: php tests/reservation-prices.php
+      - run: php tests/reservation-categories.php
       - run: php tests/activity.php
       - run: php tests/wish-links.php
       - run: php tests/storage.php
